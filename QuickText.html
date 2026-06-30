@@ -1644,6 +1644,7 @@ function checkPin() {
       if (p) {
         const existing = getInitials(p.id);
         if (!existing) {
+          pendingProfile = p.id; // restore so saveFirstInitials can find the profile
           document.getElementById('initials-name').textContent = p.name;
           document.getElementById('fFirstInitials').value = '';
           document.getElementById('initials-overlay').classList.add('open');
@@ -1659,6 +1660,7 @@ function checkPin() {
         if (p && p.manager) {
           const existing = getInitials(p.id);
           if (!existing) {
+            pendingProfile = p.id; // restore so saveFirstInitials can find the profile
             document.getElementById('initials-name').textContent = p.name;
             document.getElementById('fFirstInitials').value = '';
             document.getElementById('initials-overlay').classList.add('open');
