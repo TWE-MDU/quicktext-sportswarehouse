@@ -979,7 +979,7 @@ let editingIdx = -1;
 // ── GOOGLE SHEETS STORAGE ────────────────────────────────────
 // Shortcuts are stored in Google Sheets via Apps Script.
 // PINs, access code, initials, display names stay in localStorage (lightweight, non-critical).
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbx3C8UkdIUM8TPi66Tp0ntvD6LtUlw79q7UDMUPMCgw24V1sYO1VMLVAOdrl9jdIBwigw/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxmj_QJZ65rgGldxbwkT5UERR-EIPfKC7MVKcZgN5vB41yxrdmEo0SgUHgpi6rThMA2Bw/exec';
 
 // In-memory cache to avoid redundant network calls
 const _cache = {};
@@ -1002,51 +1002,58 @@ function hideLoadingOverlay() {
   if (el) el.style.display = 'none';
 }
 
+// JSONP call — the only reliable way to call GAS cross-origin from a browser
+function gasCall(params) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'qt_cb_' + Date.now();
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => {
+      delete window[cbName];
+      script.remove();
+      reject(new Error('GAS timeout'));
+    }, 15000);
+    window[cbName] = function(data) {
+      clearTimeout(timeout);
+      delete window[cbName];
+      script.remove();
+      resolve(data);
+    };
+    const url = GAS_URL + '?' + new URLSearchParams({ ...params, callback: cbName }).toString();
+    script.src = url;
+    script.onerror = () => { clearTimeout(timeout); delete window[cbName]; script.remove(); reject(new Error('GAS script error')); };
+    document.head.appendChild(script);
+  });
+}
+
 async function gasGet(params) {
-  const url = GAS_URL + '?' + new URLSearchParams(params).toString();
-  const resp = await fetch(url, { redirect: 'follow' });
-  return resp.json();
+  return gasCall(params);
 }
 
 async function gasPost(body) {
-  // Use no-cors POST — GAS handles it, we don't need the response for saves
-  const formData = new FormData();
-  Object.keys(body).forEach(k => {
-    formData.append(k, typeof body[k] === 'object' ? JSON.stringify(body[k]) : body[k]);
-  });
-  try {
-    await fetch(GAS_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: formData
-    });
-    return { ok: true };
-  } catch(e) {
-    throw e;
-  }
+  return gasCall(body);
 }
 
 async function loadShortcutsFromSheets(pid) {
-  if (_cache[pid]) return _cache[pid];
+  if (_cache[pid] !== undefined) return _cache[pid];
   try {
-    const data = await gasGet({ action: 'load', pid });
-    if (data.shortcuts) {
-      _cache[pid] = data.shortcuts.length > 0 ? data.shortcuts : null;
+    const data = await gasCall({ action: 'load', pid });
+    if (data && data.shortcuts) {
+      _cache[pid] = data.shortcuts;
       return _cache[pid];
     }
   } catch(e) {
-    console.warn('Google Sheets load failed, falling back to localStorage', e);
+    console.warn('GAS load failed:', e);
   }
   return null;
 }
 
-async function saveShortcutsToSheets(pid, shortcuts) {
-  _cache[pid] = shortcuts;
+async function saveShortcutsToSheets(pid, sc) {
+  _cache[pid] = sc;
   try {
-    await gasPost({ action: 'save', pid, shortcuts });
+    await gasCall({ action: 'save', pid, shortcuts: JSON.stringify(sc) });
   } catch(e) {
-    // Fallback: save to localStorage so nothing is lost
-    localStorage.setItem(storageKey(pid), JSON.stringify(shortcuts));
+    console.warn('GAS save failed:', e);
+    localStorage.setItem(storageKey(pid), JSON.stringify(sc));
     showToast('⚠️ Cloud save failed — saved locally as backup.');
   }
 }
