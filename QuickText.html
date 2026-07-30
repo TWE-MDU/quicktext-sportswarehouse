@@ -212,6 +212,9 @@ textarea#compose::placeholder{color:#BEC4CF}
   <button id="supBtn" onclick="openSupPanel()" style="display:none;align-items:center;gap:6px;background:#7C3AED;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-family:var(--sans);font-size:.78rem;font-weight:600;cursor:pointer;flex-shrink:0">
     <span style="font-size:.9rem">👥</span> Team
   </button>
+  <button id="homeBtn" onclick="switchProfile()" style="display:none;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:var(--sans);font-size:.78rem;font-weight:500;color:var(--sub);cursor:pointer;flex-shrink:0" title="Back to profile selector">
+    🏠 Home
+  </button>
   <div style="display:none;align-items:center;gap:6px" id="pillWrap">
     <div class="profile-pill" id="profilePill" onclick="switchProfile()" title="Switch profile">
       <div class="profile-avatar" id="pillAvatar"></div>
@@ -976,7 +979,7 @@ let editingIdx = -1;
 // ── GOOGLE SHEETS STORAGE ────────────────────────────────────
 // Shortcuts are stored in Google Sheets via Apps Script.
 // PINs, access code, initials, display names stay in localStorage (lightweight, non-critical).
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwTmq6I6ghZJA972PmEs9y5dBi97rtKL054nASZQ8n5hDnIbkJpZzFyxGZLNFn0j6ZPxQ/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbx3C8UkdIUM8TPi66Tp0ntvD6LtUlw79q7UDMUPMCgw24V1sYO1VMLVAOdrl9jdIBwigw/exec';
 
 // In-memory cache to avoid redundant network calls
 const _cache = {};
@@ -1006,12 +1009,21 @@ async function gasGet(params) {
 }
 
 async function gasPost(body) {
-  // GAS doesn't support POST cross-origin easily, use GET with encoded body
-  const params = { ...body };
-  if (params.shortcuts) params.shortcuts = JSON.stringify(params.shortcuts);
-  const url = GAS_URL + '?' + new URLSearchParams(params).toString();
-  const resp = await fetch(url, { redirect: 'follow' });
-  return resp.json();
+  // Use no-cors POST — GAS handles it, we don't need the response for saves
+  const formData = new FormData();
+  Object.keys(body).forEach(k => {
+    formData.append(k, typeof body[k] === 'object' ? JSON.stringify(body[k]) : body[k]);
+  });
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: formData
+    });
+    return { ok: true };
+  } catch(e) {
+    throw e;
+  }
 }
 
 async function loadShortcutsFromSheets(pid) {
@@ -1221,6 +1233,7 @@ function switchProfile() {
   document.getElementById('pillWrap').style.display = 'none';
   document.getElementById('mgrBtn').style.display = 'none';
   document.getElementById('supBtn').style.display = 'none';
+  document.getElementById('homeBtn').style.display = 'none';
   document.getElementById('hdrHint').style.display = 'none';
   pendingProfile = null;
   document.querySelectorAll('.ps-card').forEach(c => c.classList.remove('selected'));
@@ -1270,6 +1283,7 @@ function showApp() {
   document.getElementById('pillWrap').style.display = 'flex';
   document.getElementById('mgrBtn').style.display = activeProfile.manager ? 'flex' : 'none';
   document.getElementById('supBtn').style.display = activeProfile.supervisor ? 'flex' : 'none';
+  document.getElementById('homeBtn').style.display = 'flex';
   renderList();
   updateCharCount();
   checkBackupReminder();
@@ -2022,6 +2036,7 @@ function mgrResetAll() {
   document.getElementById('pillWrap').style.display = 'none';
   document.getElementById('mgrBtn').style.display = 'none';
   document.getElementById('supBtn').style.display = 'none';
+  document.getElementById('homeBtn').style.display = 'none';
   document.getElementById('hdrHint').style.display = 'none';
   showToast('All data reset.');
 }
@@ -2162,6 +2177,7 @@ function resetAllData() {
   document.getElementById('pillWrap').style.display = 'none';
   document.getElementById('mgrBtn').style.display = 'none';
   document.getElementById('supBtn').style.display = 'none';
+  document.getElementById('homeBtn').style.display = 'none';
   document.getElementById('hdrHint').style.display = 'none';
   showToast('All data reset. Every profile starts fresh.');
 }
