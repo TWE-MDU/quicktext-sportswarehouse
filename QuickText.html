@@ -1291,7 +1291,7 @@ function saveInitialsEdit() {
 function showApp() {
   document.getElementById('screen-profile').style.display = 'none';
   document.getElementById('screen-app').style.display = 'block';
-  document.getElementById('hdrHint').style.display = window.innerWidth > 1200 ? 'block' : 'none';
+  document.getElementById('hdrHint').style.display = 'none';
   // pill
   const color = TEAM_COLORS[activeProfile.team] || '#64748B';
   const initials = activeProfile.name.slice(0,2).toUpperCase();
