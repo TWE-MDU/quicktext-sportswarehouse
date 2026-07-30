@@ -907,10 +907,11 @@ function starterShortcuts(lang) {
 }
 
 // VERSION 
-const APP_VERSION = '2.11';
+const APP_VERSION = '2.12';
 const CHANGELOG = [
-  { v:'2.11', date:'Jun 2026', note:'Access code required to open the tool — team members enter it once per browser and are remembered. Manager can change the access code from the Manager Panel.' },
-  { v:'2.10', date:'Jun 2026', note:'Backup reminder: a banner appears after 14 days without an export. One click exports and dismisses it. Snooze available for 7 more days.' },
+  { v:'2.12', date:'Jul 2026', note:'Shortcuts now stored in Google Sheets — no more data loss on iPad. Each profile has its own tab in the Sheet. localStorage kept as offline backup.' },
+  { v:'2.11', date:'Jun 2026', note:'Access code required to open the tool. Manager can change the access code from the Manager Panel.' },
+  { v:'2.10', date:'Jun 2026', note:'Backup reminder after 14 days without an export. Snooze available for 7 more days.' },
   { v:'2.9', date:'Jun 2026', note:'PIN required to access Manager and Supervisor profiles — no more bypass on page reload. Supervisor Panel: add/remove CSR profiles, change supervisor PIN. Supervisor gets language filter tabs.' },
   { v:'2.8', date:'Jun 2026', note:'Fixed shortcut cards — Edit, Show, Up, Down, Del buttons now always visible and working. Preview text no longer bold. Direct Copy button on each card. Duplicate button when editing. Bigger tap targets for iPad.' },
   { v:'2.7', date:'Jun 2026', note:'Fixed button index bug — Edit / Show / Up / Down / Del now always target the correct shortcut when search or language filter is active. Manager panel: one-click cleanup for stray it- shortcuts on MDU profile.' },
@@ -972,22 +973,89 @@ let activeProfile = null;
 let shortcuts = [];
 let editingIdx = -1;
 
+// ── GOOGLE SHEETS STORAGE ────────────────────────────────────
+// Shortcuts are stored in Google Sheets via Apps Script.
+// PINs, access code, initials, display names stay in localStorage (lightweight, non-critical).
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzvIolQprE370HvTPZyPmBV6jU2uUn_EnqMp5-3QXUb4w0CYdva0ADmlpFQjUGYUpaUbg/exec';
+https://script.google.com/macros/s/AKfycbzvIolQprE370HvTPZyPmBV6jU2uUn_EnqMp5-3QXUb4w0CYdva0ADmlpFQjUGYUpaUbg/exec
+
+// In-memory cache to avoid redundant network calls
+const _cache = {};
+
+function showLoadingOverlay(msg) {
+  let el = document.getElementById('gasLoading');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'gasLoading';
+    el.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:var(--sans)';
+    el.innerHTML = '<div style="font-size:1.6rem;margin-bottom:12px">⏳</div><div id="gasLoadingMsg" style="font-size:.9rem;color:var(--sub)"></div>';
+    document.body.appendChild(el);
+  }
+  document.getElementById('gasLoadingMsg').textContent = msg || 'Loading…';
+  el.style.display = 'flex';
+}
+
+function hideLoadingOverlay() {
+  const el = document.getElementById('gasLoading');
+  if (el) el.style.display = 'none';
+}
+
+async function gasGet(params) {
+  const url = GAS_URL + '?' + new URLSearchParams(params).toString();
+  const resp = await fetch(url);
+  return resp.json();
+}
+
+async function gasPost(body) {
+  const resp = await fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return resp.json();
+}
+
+async function loadShortcutsFromSheets(pid) {
+  if (_cache[pid]) return _cache[pid];
+  try {
+    const data = await gasGet({ action: 'load', pid });
+    if (data.shortcuts) {
+      _cache[pid] = data.shortcuts.length > 0 ? data.shortcuts : null;
+      return _cache[pid];
+    }
+  } catch(e) {
+    console.warn('Google Sheets load failed, falling back to localStorage', e);
+  }
+  return null;
+}
+
+async function saveShortcutsToSheets(pid, shortcuts) {
+  _cache[pid] = shortcuts;
+  try {
+    await gasPost({ action: 'save', pid, shortcuts });
+  } catch(e) {
+    // Fallback: save to localStorage so nothing is lost
+    localStorage.setItem(storageKey(pid), JSON.stringify(shortcuts));
+    showToast('⚠️ Cloud save failed — saved locally as backup.');
+  }
+}
+
 function storageKey(pid) { return `qt_shortcuts_${pid}`; }
 
-function loadShortcuts(pid) {
+function loadShortcutsSync(pid) {
+  // Synchronous fallback from localStorage (used during offline)
   try {
     const raw = localStorage.getItem(storageKey(pid));
     if (raw) return JSON.parse(raw);
   } catch {}
-  // first time: starter set
   const p = PROFILES.find(x => x.id === pid);
-  const s = starterShortcuts(p ? p.lang : 'en');
-  localStorage.setItem(storageKey(pid), JSON.stringify(s));
-  return s;
+  return starterShortcuts(p ? p.lang : 'en');
 }
 
 function saveShortcutsToStorage() {
+  // Write to both Sheets and localStorage (localStorage = offline backup)
   localStorage.setItem(storageKey(activeProfile.id), JSON.stringify(shortcuts));
+  saveShortcutsToSheets(activeProfile.id, shortcuts);
 }
 
 // DATE HELPERS 
@@ -1097,23 +1165,41 @@ function confirmProfile() {
   }
 }
 
-function saveFirstInitials() {
+async function saveFirstInitials() {
   const val = document.getElementById('fFirstInitials').value.trim().toLowerCase();
   if (!val) { showToast('Please enter your initials.'); return; }
   const p = PROFILES.find(x => x.id === pendingProfile);
   setInitials(p.id, val);
   // patch dat shortcut with real initials
-  const s = loadShortcuts(p.id);
+  const s = loadShortcutsSync(p.id);
   s.forEach(sc => { if (sc.type === 'date_initials') sc.initials = val; });
   localStorage.setItem(storageKey(p.id), JSON.stringify(s));
   document.getElementById('initials-overlay').classList.remove('open');
-  activateProfile(p);
+  await activateProfile(p);
 }
 
-function activateProfile(p) {
+async function activateProfile(p) {
   activeProfile = p;
   localStorage.setItem(ACTIVE_KEY, activeProfile.id);
-  shortcuts = loadShortcuts(activeProfile.id);
+  showLoadingOverlay('Loading your shortcuts…');
+  try {
+    const fromSheets = await loadShortcutsFromSheets(p.id);
+    if (fromSheets) {
+      shortcuts = fromSheets;
+      // Mirror to localStorage as offline backup
+      localStorage.setItem(storageKey(p.id), JSON.stringify(shortcuts));
+    } else {
+      // Nothing in Sheets yet — check localStorage, then starter set
+      shortcuts = loadShortcutsSync(p.id);
+      // Push to Sheets so it's there next time
+      await saveShortcutsToSheets(p.id, shortcuts);
+    }
+  } catch(e) {
+    // Offline fallback
+    shortcuts = loadShortcutsSync(p.id);
+    showToast('⚠️ Could not reach cloud — using local backup.');
+  }
+  hideLoadingOverlay();
   showApp();
 }
 
@@ -1743,14 +1829,13 @@ function mgrSetInitials(idx) {
   if (val && val.trim()) {
     const ini = val.trim().toLowerCase();
     setInitials(p.id, ini);
-    // Update their date shortcuts too
+    // Update their date shortcuts in localStorage cache and Sheets
     try {
-      const raw = localStorage.getItem(storageKey(p.id));
-      if (raw) {
-        const sc = JSON.parse(raw);
-        sc.forEach(s => { if (s.type === 'date_initials') s.initials = ini; });
-        localStorage.setItem(storageKey(p.id), JSON.stringify(sc));
-      }
+      const cached = _cache[p.id] || JSON.parse(localStorage.getItem(storageKey(p.id)) || '[]');
+      cached.forEach(s => { if (s.type === 'date_initials') s.initials = ini; });
+      localStorage.setItem(storageKey(p.id), JSON.stringify(cached));
+      _cache[p.id] = cached;
+      saveShortcutsToSheets(p.id, cached);
     } catch {}
     renderMgrProfiles();
     showToast('Initials for ' + getDisplayName(p) + ' updated.');
@@ -1761,13 +1846,10 @@ function mgrResetOne(idx) {
   const p = PROFILES[idx];
   const name = getDisplayName(p);
   if (!confirm('Reset all shortcuts and settings for ' + name + '?\nThey will start fresh next time they log in.')) return;
-  // Remove all their keys
-  const prefix = p.id;
   [storageKey(p.id), initialsKey(p.id), displayNameKey(p.id)].forEach(k => localStorage.removeItem(k));
-  // If currently logged in as this person, log them out
-  if (activeProfile && activeProfile.id === p.id) {
-    switchProfile();
-  }
+  delete _cache[p.id];
+  saveShortcutsToSheets(p.id, []); // clear in Sheets too
+  if (activeProfile && activeProfile.id === p.id) switchProfile();
   renderMgrProfiles();
   showToast(name + ' has been reset.');
 }
