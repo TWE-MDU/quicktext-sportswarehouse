@@ -43,12 +43,15 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 .hdr-hint kbd{background:#F1F3F7;border:1px solid #D1D5DB;border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:.68rem}
 
 /* Responsive header for iPad/tablet */
-@media (max-width:1024px) {
+@media (max-width:1200px) {
   .hdr{padding:0 12px;gap:8px}
   .hdr-logo{height:32px}
   .hdr-hint{display:none!important}
   .hdr-app{display:none}
   .hdr-divider{display:none}
+}
+@media (max-width:768px) {
+  .hdr-logo{height:26px}
 }
 
 /* profile pill */
@@ -1288,7 +1291,7 @@ function saveInitialsEdit() {
 function showApp() {
   document.getElementById('screen-profile').style.display = 'none';
   document.getElementById('screen-app').style.display = 'block';
-  document.getElementById('hdrHint').style.display = 'block';
+  document.getElementById('hdrHint').style.display = window.innerWidth > 1200 ? 'block' : 'none';
   // pill
   const color = TEAM_COLORS[activeProfile.team] || '#64748B';
   const initials = activeProfile.name.slice(0,2).toUpperCase();
