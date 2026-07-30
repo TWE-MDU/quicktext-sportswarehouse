@@ -976,8 +976,7 @@ let editingIdx = -1;
 // ── GOOGLE SHEETS STORAGE ────────────────────────────────────
 // Shortcuts are stored in Google Sheets via Apps Script.
 // PINs, access code, initials, display names stay in localStorage (lightweight, non-critical).
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzvIolQprE370HvTPZyPmBV6jU2uUn_EnqMp5-3QXUb4w0CYdva0ADmlpFQjUGYUpaUbg/exec';
-https://script.google.com/macros/s/AKfycbzvIolQprE370HvTPZyPmBV6jU2uUn_EnqMp5-3QXUb4w0CYdva0ADmlpFQjUGYUpaUbg/exec
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwTmq6I6ghZJA972PmEs9y5dBi97rtKL054nASZQ8n5hDnIbkJpZzFyxGZLNFn0j6ZPxQ/exec';
 
 // In-memory cache to avoid redundant network calls
 const _cache = {};
@@ -1002,16 +1001,16 @@ function hideLoadingOverlay() {
 
 async function gasGet(params) {
   const url = GAS_URL + '?' + new URLSearchParams(params).toString();
-  const resp = await fetch(url);
+  const resp = await fetch(url, { redirect: 'follow' });
   return resp.json();
 }
 
 async function gasPost(body) {
-  const resp = await fetch(GAS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
+  // GAS doesn't support POST cross-origin easily, use GET with encoded body
+  const params = { ...body };
+  if (params.shortcuts) params.shortcuts = JSON.stringify(params.shortcuts);
+  const url = GAS_URL + '?' + new URLSearchParams(params).toString();
+  const resp = await fetch(url, { redirect: 'follow' });
   return resp.json();
 }
 
@@ -1184,20 +1183,24 @@ async function activateProfile(p) {
   showLoadingOverlay('Loading your shortcuts…');
   try {
     const fromSheets = await loadShortcutsFromSheets(p.id);
-    if (fromSheets) {
+    if (fromSheets && fromSheets.length > 0) {
       shortcuts = fromSheets;
-      // Mirror to localStorage as offline backup
       localStorage.setItem(storageKey(p.id), JSON.stringify(shortcuts));
-    } else {
-      // Nothing in Sheets yet — check localStorage, then starter set
+    } else if (fromSheets && fromSheets.length === 0) {
+      // Profile exists in Sheets but empty — check localStorage for migration
       shortcuts = loadShortcutsSync(p.id);
-      // Push to Sheets so it's there next time
-      await saveShortcutsToSheets(p.id, shortcuts);
+      if (shortcuts.length > 0) {
+        // Migrate existing local shortcuts to Sheets
+        await saveShortcutsToSheets(p.id, shortcuts);
+      }
+    } else {
+      // Sheets unreachable — use localStorage
+      shortcuts = loadShortcutsSync(p.id);
     }
   } catch(e) {
-    // Offline fallback
+    console.warn('Sheets error:', e);
     shortcuts = loadShortcutsSync(p.id);
-    showToast('⚠️ Could not reach cloud — using local backup.');
+    showToast('⚠️ Cloud unavailable — using local backup.');
   }
   hideLoadingOverlay();
   showApp();
@@ -2188,7 +2191,6 @@ document.getElementById('changelogBody').innerHTML = CHANGELOG.map(c => `
 
 const savedId = localStorage.getItem(ACTIVE_KEY);
 if (!isAccessGranted()) {
-  // Show access screen — hide everything else
   document.getElementById('screen-access').style.display = 'flex';
   document.getElementById('screen-profile').style.display = 'none';
   setTimeout(() => document.getElementById('accessInput').focus(), 80);
@@ -2199,7 +2201,11 @@ if (!isAccessGranted()) {
       localStorage.removeItem(ACTIVE_KEY);
       document.getElementById('screen-profile').style.display='flex';
     } else {
-      pendingProfile=p.id; activateProfile(p);
+      pendingProfile=p.id;
+      activateProfile(p).catch(() => {
+        shortcuts = loadShortcutsSync(p.id);
+        showApp();
+      });
     }
   } else {
     document.getElementById('screen-profile').style.display='flex';
