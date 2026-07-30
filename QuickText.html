@@ -42,6 +42,15 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 .hdr-hint{font-size:.72rem;color:var(--sub);text-align:right}
 .hdr-hint kbd{background:#F1F3F7;border:1px solid #D1D5DB;border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:.68rem}
 
+/* Responsive header for iPad/tablet */
+@media (max-width:1024px) {
+  .hdr{padding:0 12px;gap:8px}
+  .hdr-logo{height:32px}
+  .hdr-hint{display:none!important}
+  .hdr-app{display:none}
+  .hdr-divider{display:none}
+}
+
 /* profile pill */
 .profile-pill{display:flex;align-items:center;gap:8px;background:var(--blue-l);border:1px solid #C7D6F0;border-radius:20px;padding:5px 12px 5px 8px;cursor:pointer;transition:background .15s;flex-shrink:0}
 .profile-pill:hover{background:#dce7f7}
