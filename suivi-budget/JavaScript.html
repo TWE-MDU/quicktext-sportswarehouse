@@ -1,0 +1,402 @@
+<script>
+/* ============================================================
+ * ÉTAT GLOBAL
+ * ============================================================ */
+var APP = {
+  config: null,
+  type: 'Dépense',
+  devise: 'CAD',
+  deviseAffichage: 'EUR',   // affichage du solde (EUR par défaut)
+  fichierEnAttente: null,   // { b64, nom, type } pour l'upload emploi du temps
+  cache: { budget: null, loyer: null, cours: null }
+};
+
+/* ============================================================
+ * OUTILS
+ * ============================================================ */
+function $(id) { return document.getElementById(id); }
+
+function fmt(n, devise) {
+  n = Number(n) || 0;
+  var s = n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return devise === 'CAD' ? s + ' $' : s + ' €';
+}
+
+function toast(msg) {
+  var t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(function () { t.classList.remove('show'); }, 2200);
+}
+
+function erreur(e) {
+  toast('⚠️ ' + (e && e.message ? e.message : 'Erreur'));
+}
+
+/* ============================================================
+ * NAVIGATION ONGLETS
+ * ============================================================ */
+function ouvrirPage(nom) {
+  document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
+  $('page-' + nom).classList.add('active');
+  document.querySelectorAll('.tabbar button').forEach(function (b) {
+    b.classList.toggle('active', b.dataset.page === nom);
+  });
+  window.scrollTo(0, 0);
+  if (nom === 'budget') chargerBudget();
+  if (nom === 'loyer') chargerLoyer();
+  if (nom === 'cours') chargerCours();
+}
+
+document.querySelectorAll('.tabbar button').forEach(function (b) {
+  b.addEventListener('click', function () { ouvrirPage(b.dataset.page); });
+});
+
+/* ============================================================
+ * INITIALISATION
+ * ============================================================ */
+window.addEventListener('load', function () {
+  $('in-date').value = new Date().toISOString().slice(0, 10);
+  google.script.run
+    .withSuccessHandler(function (cfg) {
+      APP.config = cfg;
+      remplirCategories();
+      majConversionLive();
+      $('header-sub').textContent = 'Bonjour ' + cfg.utilisateur + ' — 1 $ CAD ≈ ' + cfg.tauxCadEur.toFixed(3) + ' €';
+    })
+    .withFailureHandler(erreur)
+    .getConfig();
+});
+
+/* ============================================================
+ * ÉCRAN AJOUTER
+ * ============================================================ */
+// Type (Dépense / Reçu)
+$('seg-type').querySelectorAll('button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    APP.type = b.dataset.type;
+    $('seg-type').querySelectorAll('button').forEach(function (x) {
+      x.classList.remove('on-dep', 'on-recu');
+    });
+    b.classList.add(APP.type === 'Reçu' ? 'on-recu' : 'on-dep');
+    // La liste déroulante bascule entre catégories et sources
+    remplirCategories();
+    $('lbl-categorie').textContent = (APP.type === 'Reçu') ? 'Reçu de qui ?' : 'Catégorie';
+  });
+});
+
+// Devise (CAD / EUR)
+$('seg-devise').querySelectorAll('button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    APP.devise = b.dataset.dev;
+    $('seg-devise').querySelectorAll('button').forEach(function (x) { x.classList.remove('on-dev'); });
+    b.classList.add('on-dev');
+    majConversionLive();
+  });
+});
+
+$('in-montant').addEventListener('input', majConversionLive);
+
+function majConversionLive() {
+  if (!APP.config) return;
+  var m = parseFloat($('in-montant').value);
+  if (!m || m <= 0) { $('conv-live').textContent = ''; return; }
+  var taux = APP.config.tauxCadEur;
+  if (APP.devise === 'CAD') {
+    $('conv-live').textContent = '≈ ' + fmt(m * taux, 'EUR');
+  } else {
+    $('conv-live').textContent = '≈ ' + fmt(m / taux, 'CAD');
+  }
+}
+
+function remplirCategories() {
+  if (!APP.config) return;
+  var liste = (APP.type === 'Reçu') ? APP.config.sources : APP.config.categories;
+  var sel = $('in-categorie');
+  sel.innerHTML = '';
+  liste.forEach(function (c) {
+    var o = document.createElement('option');
+    o.value = c; o.textContent = c; sel.appendChild(o);
+  });
+}
+
+$('btn-ajouter').addEventListener('click', function () {
+  var montant = parseFloat($('in-montant').value);
+  if (!montant || montant <= 0) { toast('Entre un montant valide'); return; }
+  var btn = this;
+  btn.disabled = true; btn.textContent = 'Enregistrement…';
+
+  google.script.run
+    .withSuccessHandler(function (dash) {
+      APP.cache.budget = dash;
+      $('in-montant').value = '';
+      $('in-note').value = '';
+      $('conv-live').textContent = '';
+      btn.disabled = false; btn.textContent = 'Enregistrer';
+      toast('✅ ' + (APP.type === 'Reçu' ? 'Reçu' : 'Dépense') + ' enregistré');
+    })
+    .withFailureHandler(function (e) {
+      btn.disabled = false; btn.textContent = 'Enregistrer'; erreur(e);
+    })
+    .ajouterTransaction({
+      type: APP.type,
+      montant: montant,
+      devise: APP.devise,
+      categorie: $('in-categorie').value,
+      note: $('in-note').value,
+      date: $('in-date').value
+    });
+});
+
+/* ============================================================
+ * ÉCRAN BUDGET
+ * ============================================================ */
+function chargerBudget() {
+  if (APP.cache.budget) { rendreBudget(APP.cache.budget); }
+  google.script.run
+    .withSuccessHandler(function (d) { APP.cache.budget = d; rendreBudget(d); })
+    .withFailureHandler(erreur)
+    .getDashboard();
+}
+
+function rendreBudget(d) {
+  var enCad = APP.deviseAffichage === 'CAD';
+  var solde = enCad ? d.soldeCad : d.soldeEur;
+  var alt = enCad ? fmt(d.soldeEur, 'EUR') : fmt(d.soldeCad, 'CAD');
+
+  var maxCat = d.categories.length ? d.categories[0].eur : 1;
+  var catsHtml = d.categories.length ? d.categories.map(function (c) {
+    var val = enCad ? c.eur / d.tauxCadEur : c.eur;
+    return '<div class="cat-row">' +
+      '<div class="cat-name">' + echap(c.categorie) + '</div>' +
+      '<div class="cat-bar"><span style="width:' + Math.max(4, (c.eur / maxCat) * 100) + '%"></span></div>' +
+      '<div class="cat-val">' + fmt(val, APP.deviseAffichage) + '</div></div>';
+  }).join('') : '<div class="empty">Aucune dépense ce mois-ci</div>';
+
+  var recentesHtml = d.recentes.length ? d.recentes.map(function (t) {
+    var estRecu = t.type === 'Reçu';
+    var val = enCad ? t.cad : t.eur;
+    var origine = fmt(t.montant, t.devise);
+    return '<div class="op">' +
+      '<div class="ico ' + (estRecu ? 'recu' : 'dep') + '">' + (estRecu ? '⬇️' : '⬆️') + '</div>' +
+      '<div class="info"><div class="t">' + echap(t.cat || (estRecu ? 'Reçu' : 'Dépense')) + '</div>' +
+      '<div class="d">' + formatDate(t.date) + (t.note ? ' · ' + echap(t.note) : '') + ' · ' + origine + '</div></div>' +
+      '<div class="amt ' + (estRecu ? 'recu' : 'dep') + '">' + (estRecu ? '+' : '−') + fmt(val, APP.deviseAffichage) + '</div>' +
+      '<button class="del" title="Supprimer" onclick="supprimerTx(\'' + t.id + '\')">🗑️</button>' +
+      '</div>';
+  }).join('') : '<div class="empty">Aucune opération pour le moment</div>';
+
+  var l = d.loyer;
+
+  $('budget-content').innerHTML =
+    // Solde
+    '<div class="card"><div class="solde-wrap">' +
+      '<div class="solde-label">Solde d\'argent de poche</div>' +
+      '<div class="solde-val ' + (d.sousLeSeuil ? 'solde-bas' : '') + '">' + fmt(solde, APP.deviseAffichage) + '</div>' +
+      '<div class="solde-alt">soit ' + alt + '</div>' +
+      (d.sousLeSeuil ? '<div class="taux-note" style="color:var(--red)">⚠️ Sous le seuil d\'alerte de ' + fmt(d.seuilEur, 'EUR') + '</div>' : '') +
+      '<div class="switch-devise">' +
+        '<button class="' + (!enCad ? 'on' : '') + '" onclick="setDevise(\'EUR\')">EUR €</button>' +
+        '<button class="' + (enCad ? 'on' : '') + '" onclick="setDevise(\'CAD\')">CAD $</button>' +
+      '</div>' +
+      '<div class="taux-note">1 $ CAD ≈ ' + d.tauxCadEur.toFixed(3) + ' €</div>' +
+    '</div></div>' +
+
+    // Carte loyer
+    '<div class="card">' +
+      '<div class="loyer-card">' +
+        '<div class="voyant ' + l.couleur + '"></div>' +
+        '<div style="flex:1">' +
+          '<div class="titre">🏠 ' + echap(l.titre) + '</div>' +
+          '<div class="msg">' + echap(l.message) + '</div>' +
+        '</div>' +
+        '<span class="badge-couleur ' + l.couleur + '">' + labelVoyant(l.couleur) + '</span>' +
+      '</div>' +
+      (l.prochainMois ? '<div style="margin-top:12px"><button class="btn secondary small" onclick="ouvrirPage(\'loyer\')">Gérer le loyer →</button></div>' : '') +
+    '</div>' +
+
+    // Stats du mois
+    '<div class="card"><h3>Ce mois-ci</h3><div class="stats2">' +
+      '<div class="stat"><div class="k">Reçu</div><div class="v recu">' + fmt(enCad ? d.recuMoisEur / d.tauxCadEur : d.recuMoisEur, APP.deviseAffichage) + '</div></div>' +
+      '<div class="stat"><div class="k">Dépensé</div><div class="v dep">' + fmt(enCad ? d.depMoisEur / d.tauxCadEur : d.depMoisEur, APP.deviseAffichage) + '</div></div>' +
+    '</div></div>' +
+
+    // Répartition
+    '<div class="card"><h3>Répartition des dépenses (mois)</h3>' + catsHtml + '</div>' +
+
+    // Dernières opérations
+    '<div class="card"><h3>Dernières opérations</h3>' + recentesHtml + '</div>';
+}
+
+function setDevise(dev) {
+  APP.deviseAffichage = dev;
+  if (APP.cache.budget) rendreBudget(APP.cache.budget);
+}
+
+function supprimerTx(id) {
+  if (!confirm('Supprimer cette opération ?')) return;
+  google.script.run
+    .withSuccessHandler(function (d) { APP.cache.budget = d; rendreBudget(d); toast('Supprimé'); })
+    .withFailureHandler(erreur)
+    .supprimerTransaction(id);
+}
+
+function labelVoyant(c) { return c === 'vert' ? 'À jour' : (c === 'orange' ? 'Bientôt' : 'Retard'); }
+
+/* ============================================================
+ * ÉCRAN LOYER
+ * ============================================================ */
+function chargerLoyer() {
+  if (APP.cache.loyer) rendreLoyer(APP.cache.loyer);
+  google.script.run
+    .withSuccessHandler(function (d) { APP.cache.loyer = d; rendreLoyer(d); })
+    .withFailureHandler(erreur)
+    .getLoyer();
+}
+
+function rendreLoyer(d) {
+  var l = d.statut;
+  var items = d.lignes.map(function (r) {
+    return '<div class="loyer-item ' + (r.paye ? 'paye' : '') + '">' +
+      '<div class="chk ' + (r.paye ? 'on' : '') + '" onclick="basculerLoyer(\'' + r.mois + '\',' + (!r.paye) + ')">' + (r.paye ? '✓' : '') + '</div>' +
+      '<div class="lbl"><div class="m">' + echap(r.libelle) + '</div>' +
+        '<div class="sub">' + (r.paye ? 'Payé le ' + r.datePaiement : 'À régler') + ' · ≈ ' + fmt(r.montantEur, 'EUR') + '</div></div>' +
+      '<div class="mt">' + fmt(r.montantCad, 'CAD') + '</div>' +
+    '</div>';
+  }).join('');
+
+  $('loyer-content').innerHTML =
+    '<div class="card"><div class="loyer-card">' +
+      '<div class="voyant ' + l.couleur + '"></div>' +
+      '<div style="flex:1"><div class="titre">🏠 ' + echap(l.titre) + '</div>' +
+      '<div class="msg">' + echap(l.message) + '</div></div>' +
+      '<span class="badge-couleur ' + l.couleur + '">' + labelVoyant(l.couleur) + '</span>' +
+    '</div>' +
+    (l.dateLimite ? '<div class="taux-note" style="margin-top:10px">Prochaine échéance : <b>' + l.dateLimite + '</b> pour ' + echap(l.prochainMois) + '</div>' : '') +
+    '</div>' +
+    '<div class="card"><h3>Échéancier — coche un mois quand il est payé</h3>' + items + '</div>';
+}
+
+function basculerLoyer(mois, paye) {
+  google.script.run
+    .withSuccessHandler(function (d) {
+      APP.cache.loyer = d; rendreLoyer(d);
+      APP.cache.budget = null; // forcer le recalcul du voyant côté budget
+      toast(paye ? '✅ Loyer marqué payé' : 'Marqué non payé');
+    })
+    .withFailureHandler(erreur)
+    .basculerLoyer(mois, paye);
+}
+
+/* ============================================================
+ * ÉCRAN COURS
+ * ============================================================ */
+$('btn-cours').addEventListener('click', function () {
+  var matiere = $('c-matiere').value.trim();
+  if (!matiere) { toast('Indique au moins la matière'); return; }
+  var btn = this; btn.disabled = true; btn.textContent = 'Ajout…';
+  google.script.run
+    .withSuccessHandler(function (d) {
+      APP.cache.cours = d; rendreCours(d);
+      ['c-matiere', 'c-salle', 'c-debut', 'c-fin', 'c-prof'].forEach(function (i) { $(i).value = ''; });
+      btn.disabled = false; btn.textContent = 'Ajouter le cours';
+      toast('✅ Cours ajouté');
+    })
+    .withFailureHandler(function (e) { btn.disabled = false; btn.textContent = 'Ajouter le cours'; erreur(e); })
+    .ajouterCours({
+      matiere: matiere, jour: $('c-jour').value, debut: $('c-debut').value,
+      fin: $('c-fin').value, salle: $('c-salle').value, prof: $('c-prof').value
+    });
+});
+
+// Sélection de fichier -> lecture base64
+$('c-fichier').addEventListener('change', function () {
+  var f = this.files[0];
+  if (!f) return;
+  if (f.size > 20 * 1024 * 1024) { toast('Fichier trop lourd (max 20 Mo)'); this.value = ''; return; }
+  var reader = new FileReader();
+  reader.onload = function () {
+    APP.fichierEnAttente = { b64: reader.result.split(',')[1], nom: f.name, type: f.type || 'application/octet-stream' };
+    $('c-fichier-nom').textContent = '📎 ' + f.name;
+    $('c-fichier-nom').classList.remove('hidden');
+  };
+  reader.readAsDataURL(f);
+});
+
+$('btn-upload').addEventListener('click', function () {
+  if (!APP.fichierEnAttente) { toast('Choisis d\'abord un fichier'); return; }
+  var btn = this; btn.disabled = true; btn.textContent = 'Envoi…';
+  var fic = APP.fichierEnAttente;
+  google.script.run
+    .withSuccessHandler(function (url) {
+      btn.disabled = false; btn.textContent = 'Téléverser le fichier';
+      APP.fichierEnAttente = null;
+      $('c-fichier').value = '';
+      $('c-fichier-nom').classList.add('hidden');
+      ajouterLienFichier(fic.nom, url);
+      toast('✅ Fichier importé');
+    })
+    .withFailureHandler(function (e) { btn.disabled = false; btn.textContent = 'Téléverser le fichier'; erreur(e); })
+    .televerserFichierEmploi(fic.b64, fic.nom, fic.type);
+});
+
+function ajouterLienFichier(nom, url) {
+  var div = document.createElement('div');
+  div.style.marginTop = '10px';
+  div.innerHTML = '📄 <a href="' + url + '" target="_blank" rel="noopener">' + echap(nom) + '</a>';
+  $('fichiers-liste').appendChild(div);
+}
+
+function chargerCours() {
+  if (APP.cache.cours) rendreCours(APP.cache.cours);
+  google.script.run
+    .withSuccessHandler(function (d) { APP.cache.cours = d; rendreCours(d); })
+    .withFailureHandler(erreur)
+    .getEmploiDuTemps();
+}
+
+function rendreCours(d) {
+  if (!d.cours.length) { $('cours-content').innerHTML = '<div class="empty">Aucun cours saisi</div>'; return; }
+  var parJour = {};
+  d.cours.forEach(function (c) { (parJour[c.jour] = parJour[c.jour] || []).push(c); });
+  var ordre = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  var html = '';
+  ordre.forEach(function (j) {
+    if (!parJour[j]) return;
+    html += '<div class="jour-titre">' + j + '</div>';
+    parJour[j].forEach(function (c) {
+      var heure = (c.debut || '') + (c.fin ? ' – ' + c.fin : '');
+      var meta = [c.salle, c.prof].filter(String).join(' · ');
+      html += '<div class="cours"><div class="h">' + echap(heure || '—') + '</div>' +
+        '<div class="c"><div class="nom">' + echap(c.matiere) + '</div>' +
+        (meta ? '<div class="meta">' + echap(meta) + '</div>' : '') + '</div>' +
+        '<button class="del" onclick="supprimerCours(\'' + c.id + '\')">🗑️</button></div>';
+    });
+  });
+  $('cours-content').innerHTML = html;
+}
+
+function supprimerCours(id) {
+  if (!confirm('Supprimer ce cours ?')) return;
+  google.script.run
+    .withSuccessHandler(function (d) { APP.cache.cours = d; rendreCours(d); toast('Supprimé'); })
+    .withFailureHandler(erreur)
+    .supprimerCours(id);
+}
+
+/* ============================================================
+ * HELPERS D'AFFICHAGE
+ * ============================================================ */
+function echap(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function formatDate(d) {
+  var p = String(d).slice(0, 10).split('-');
+  if (p.length !== 3) return String(d);
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+</script>

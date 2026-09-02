@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Budget Nolhan</title>
+  <?!= include('Stylesheet'); ?>
+</head>
+<body>
+
+  <header class="app-header">
+    <h1>💰 Budget Nolhan</h1>
+    <div class="sub" id="header-sub">Suivi des dépenses & du loyer — Canada</div>
+  </header>
+
+  <!-- ================= AJOUTER ================= -->
+  <section id="page-ajouter" class="page active">
+    <div class="card">
+      <h2>Nouvelle opération</h2>
+
+      <label class="field">
+        <span>Type</span>
+        <div class="seg" id="seg-type">
+          <button type="button" data-type="Dépense" class="on-dep">➖ Dépense</button>
+          <button type="button" data-type="Reçu">➕ Argent reçu</button>
+        </div>
+      </label>
+
+      <label class="field">
+        <span>Montant</span>
+        <div class="row2">
+          <input id="in-montant" type="number" inputmode="decimal" placeholder="0,00" step="0.01" min="0">
+          <div class="seg" id="seg-devise">
+            <button type="button" data-dev="CAD" class="on-dev">🇨🇦 CAD</button>
+            <button type="button" data-dev="EUR">🇪🇺 EUR</button>
+          </div>
+        </div>
+        <div class="taux-note" id="conv-live"></div>
+      </label>
+
+      <label class="field" id="wrap-categorie">
+        <span id="lbl-categorie">Catégorie</span>
+        <select id="in-categorie"></select>
+      </label>
+
+      <div class="row2">
+        <label class="field">
+          <span>Date</span>
+          <input id="in-date" type="date">
+        </label>
+        <label class="field">
+          <span>Note (facultatif)</span>
+          <input id="in-note" type="text" placeholder="ex. IGA, métro…">
+        </label>
+      </div>
+
+      <button class="btn" id="btn-ajouter">Enregistrer</button>
+    </div>
+  </section>
+
+  <!-- ================= BUDGET / TABLEAU ================= -->
+  <section id="page-budget" class="page">
+    <div id="budget-content">
+      <div class="loader"><div class="spin"></div><div style="margin-top:10px">Chargement…</div></div>
+    </div>
+  </section>
+
+  <!-- ================= LOYER ================= -->
+  <section id="page-loyer" class="page">
+    <div id="loyer-content">
+      <div class="loader"><div class="spin"></div></div>
+    </div>
+  </section>
+
+  <!-- ================= COURS ================= -->
+  <section id="page-cours" class="page">
+    <div class="card">
+      <h2>Ajouter un cours</h2>
+      <label class="field"><span>Matière *</span><input id="c-matiere" type="text" placeholder="ex. Mathématiques"></label>
+      <div class="row2">
+        <label class="field"><span>Jour</span>
+          <select id="c-jour">
+            <option>Lundi</option><option>Mardi</option><option>Mercredi</option>
+            <option>Jeudi</option><option>Vendredi</option><option>Samedi</option><option>Dimanche</option>
+          </select>
+        </label>
+        <label class="field"><span>Salle</span><input id="c-salle" type="text" placeholder="ex. B-204"></label>
+      </div>
+      <div class="row2">
+        <label class="field"><span>Début</span><input id="c-debut" type="time"></label>
+        <label class="field"><span>Fin</span><input id="c-fin" type="time"></label>
+      </div>
+      <label class="field"><span>Professeur</span><input id="c-prof" type="text" placeholder="ex. M. Tremblay"></label>
+      <button class="btn" id="btn-cours">Ajouter le cours</button>
+    </div>
+
+    <div class="card">
+      <h2>Importer un emploi du temps</h2>
+      <p class="muted" style="margin-top:0;font-size:13px">PDF ou photo. Le fichier est stocké dans ton Google Drive et consultable depuis l'app.</p>
+      <input id="c-fichier" type="file" accept="application/pdf,image/*">
+      <div class="file-name hidden" id="c-fichier-nom"></div>
+      <div style="margin-top:10px"><button class="btn secondary" id="btn-upload">Téléverser le fichier</button></div>
+      <div id="fichiers-liste"></div>
+    </div>
+
+    <div class="card">
+      <h2>Semaine de cours</h2>
+      <div id="cours-content"><div class="loader"><div class="spin"></div></div></div>
+    </div>
+  </section>
+
+  <!-- ================= BARRE D'ONGLETS ================= -->
+  <nav class="tabbar">
+    <button data-page="ajouter" class="active"><span class="ic">➕</span>Ajouter</button>
+    <button data-page="budget"><span class="ic">📊</span>Budget</button>
+    <button data-page="loyer"><span class="ic">🏠</span>Loyer</button>
+    <button data-page="cours"><span class="ic">📅</span>Cours</button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
