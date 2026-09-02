@@ -36,6 +36,10 @@ var EMAILS_DEFAUT = 'mducheman@gmail.com, ducheman.nolhan@gmail.com, nancydemaes
 // Seuil d'alerte sur le solde « argent de poche » (en euros)
 var SEUIL_SOLDE_EUR_DEFAUT = 100;
 
+// Code PIN par défaut (à changer dans l'onglet Paramètres, clé « code_pin »).
+// Mettre une valeur vide pour désactiver le verrouillage.
+var PIN_DEFAUT = '1234';
+
 // Taux de repli si GOOGLEFINANCE est indisponible (1 CAD = X EUR)
 var TAUX_CAD_EUR_REPLI = 0.66;
 
@@ -147,6 +151,7 @@ function ensureSetup_() {
     pa.appendRow(['seuil_solde_eur', SEUIL_SOLDE_EUR_DEFAUT]);
     pa.appendRow(['taux_cad_eur_manuel', TAUX_CAD_EUR_REPLI]);
     pa.appendRow(['recap_hebdo', 'oui']);
+    pa.appendRow(['code_pin', PIN_DEFAUT]);
     // Cellules techniques pour le taux de change automatique (GOOGLEFINANCE)
     pa.appendRow(['taux_cad_eur_auto', '']);
     pa.getRange('B' + pa.getLastRow()).setFormula('=IFERROR(GOOGLEFINANCE("CURRENCY:CADEUR"),"")');
@@ -235,23 +240,68 @@ function convertir_(montant, devise) {
 function arrondi_(x) { return Math.round(x * 100) / 100; }
 
 /* ============================================================
- * API CÔTÉ CLIENT – CONFIG & DASHBOARD
+ * SÉCURITÉ – VERROUILLAGE PAR CODE PIN
  * ============================================================ */
 
-/** Configuration envoyée au chargement de l'app. */
-function getConfig() {
+/** Jeton de session interne (créé une fois, mémorisé). */
+function getJetonSecret_() {
+  var props = PropertiesService.getScriptProperties();
+  var s = props.getProperty('jeton_secret');
+  if (!s) { s = Utilities.getUuid(); props.setProperty('jeton_secret', s); }
+  return s;
+}
+
+/** Le code PIN attendu (vide = verrouillage désactivé). */
+function pinAttendu_() {
+  return String(getParam_('code_pin', PIN_DEFAUT)).trim();
+}
+
+/** Vérifie le jeton fourni par le client ; lève une erreur si invalide. */
+function verifierAcces_(jeton) {
+  if (pinAttendu_() === '') return;               // verrouillage désactivé
+  if (jeton && jeton === getJetonSecret_()) return;
+  throw new Error('Accès non autorisé — code PIN requis.');
+}
+
+/** Le client demande si un PIN est nécessaire (au chargement). */
+function getEtatVerrou() {
   ensureSetup_();
+  return { verrou: pinAttendu_() !== '' };
+}
+
+/**
+ * Déverrouille l'app avec le PIN. En cas de succès, renvoie un jeton
+ * (à transmettre aux appels suivants) et la configuration.
+ */
+function deverrouiller(pin) {
+  ensureSetup_();
+  if (pinAttendu_() !== '' && String(pin).trim() !== pinAttendu_()) {
+    return { ok: false };
+  }
+  return { ok: true, jeton: getJetonSecret_(), config: configInterne_() };
+}
+
+function configInterne_() {
   return {
     sources: listeDepuisParam_('sources', SOURCES_DEFAUT),
     categories: listeDepuisParam_('categories', CATEGORIES_DEFAUT),
     tauxCadEur: getTauxCadEur_(),
     seuilEur: parseFloat(getParam_('seuil_solde_eur', SEUIL_SOLDE_EUR_DEFAUT)),
-    utilisateur: (Session.getActiveUser().getEmail() || '').split('@')[0] || 'moi'
+    utilisateur: (Session.getActiveUser().getEmail() || '').split('@')[0] || 'famille'
   };
 }
 
-/** Toutes les données du tableau de bord en un appel. */
-function getDashboard() {
+/* ============================================================
+ * API CÔTÉ CLIENT – DASHBOARD
+ * ============================================================ */
+
+/** Toutes les données du tableau de bord en un appel (protégé par PIN). */
+function getDashboard(jeton) {
+  verifierAcces_(jeton);
+  return dashboardInterne_();
+}
+
+function dashboardInterne_() {
   ensureSetup_();
   var tx = lireTransactions_();
   var maintenant = new Date();
@@ -320,7 +370,8 @@ function lireTransactions_() {
  * Ajoute une transaction (reçu ou dépense).
  * data = { type, montant, devise, categorie, note, date(optionnel) }
  */
-function ajouterTransaction(data) {
+function ajouterTransaction(jeton, data) {
+  verifierAcces_(jeton);
   ensureSetup_();
   var sh = getClasseur_().getSheetByName(FEUILLES.TRANSACTIONS);
   var montant = parseFloat(data.montant);
@@ -338,16 +389,17 @@ function ajouterTransaction(data) {
     type, montant, devise, conv.cad, conv.eur,
     data.categorie || '', data.note || '', auteur, new Date()
   ]);
-  return getDashboard();
+  return dashboardInterne_();
 }
 
-function supprimerTransaction(id) {
+function supprimerTransaction(jeton, id) {
+  verifierAcces_(jeton);
   var sh = getClasseur_().getSheetByName(FEUILLES.TRANSACTIONS);
   var v = sh.getDataRange().getValues();
   for (var i = v.length - 1; i >= 1; i--) {
     if (v[i][0] === id) { sh.deleteRow(i + 1); break; }
   }
-  return getDashboard();
+  return dashboardInterne_();
 }
 
 /* ============================================================
@@ -368,8 +420,13 @@ function lireLoyer_() {
   });
 }
 
-/** Liste complète de l'échéancier (pour l'écran Loyer). */
-function getLoyer() {
+/** Liste complète de l'échéancier (pour l'écran Loyer, protégé par PIN). */
+function getLoyer(jeton) {
+  verifierAcces_(jeton);
+  return loyerInterne_();
+}
+
+function loyerInterne_() {
   ensureSetup_();
   var taux = getTauxCadEur_();
   var lignes = lireLoyer_().map(function (l) {
@@ -384,7 +441,8 @@ function getLoyer() {
 }
 
 /** Coche / décoche un mois de loyer comme payé. */
-function basculerLoyer(mois, paye) {
+function basculerLoyer(jeton, mois, paye) {
+  verifierAcces_(jeton);
   var sh = getClasseur_().getSheetByName(FEUILLES.LOYER);
   var v = sh.getDataRange().getValues();
   var auteur = (Session.getActiveUser().getEmail() || 'inconnu').split('@')[0];
@@ -396,7 +454,7 @@ function basculerLoyer(mois, paye) {
       break;
     }
   }
-  return getLoyer();
+  return loyerInterne_();
 }
 
 /**
@@ -460,7 +518,12 @@ function getStatutLoyer_() {
 
 var ORDRE_JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 
-function getEmploiDuTemps() {
+function getEmploiDuTemps(jeton) {
+  verifierAcces_(jeton);
+  return emploiInterne_();
+}
+
+function emploiInterne_() {
   ensureSetup_();
   var sh = getClasseur_().getSheetByName(FEUILLES.EMPLOI);
   if (!sh || sh.getLastRow() < 2) return { cours: [] };
@@ -479,23 +542,25 @@ function getEmploiDuTemps() {
   return { cours: cours };
 }
 
-function ajouterCours(data) {
+function ajouterCours(jeton, data) {
+  verifierAcces_(jeton);
   ensureSetup_();
   var sh = getClasseur_().getSheetByName(FEUILLES.EMPLOI);
   if (!data.matiere) throw new Error('La matière est obligatoire.');
   var id = 'C' + new Date().getTime();
   sh.appendRow([id, data.matiere, data.jour || '', data.debut || '', data.fin || '',
     data.salle || '', data.prof || '', data.note || '', data.fichierUrl || '']);
-  return getEmploiDuTemps();
+  return emploiInterne_();
 }
 
-function supprimerCours(id) {
+function supprimerCours(jeton, id) {
+  verifierAcces_(jeton);
   var sh = getClasseur_().getSheetByName(FEUILLES.EMPLOI);
   var v = sh.getDataRange().getValues();
   for (var i = v.length - 1; i >= 1; i--) {
     if (v[i][0] === id) { sh.deleteRow(i + 1); break; }
   }
-  return getEmploiDuTemps();
+  return emploiInterne_();
 }
 
 /**
@@ -503,7 +568,8 @@ function supprimerCours(id) {
  * et renvoie son URL consultable.
  * b64 = données base64 ; nom = nom de fichier ; type = mime.
  */
-function televerserFichierEmploi(b64, nom, type) {
+function televerserFichierEmploi(jeton, b64, nom, type) {
+  verifierAcces_(jeton);
   var dossier = getDossierEmploi_();
   var blob = Utilities.newBlob(Utilities.base64Decode(b64), type, nom);
   var fichier = dossier.createFile(blob);
@@ -547,7 +613,7 @@ function verifierAlertesQuotidiennes() {
 
 /** Alerte si le solde « argent de poche » passe sous le seuil. */
 function verifierSeuilSolde_() {
-  var d = getDashboard();
+  var d = dashboardInterne_();
   if (!d.sousLeSeuil) return;
 
   var props = PropertiesService.getScriptProperties();
@@ -602,7 +668,7 @@ function envoyerRecapHebdo() {
     }
   });
 
-  var d = getDashboard();
+  var d = dashboardInterne_();
   var lignesCat = Object.keys(parCat).sort(function (a, b) { return parCat[b] - parCat[a]; })
     .map(function (c) { return '  • ' + c + ' : ' + arrondi_(parCat[c]) + ' €'; }).join('\n') || '  (aucune dépense)';
 

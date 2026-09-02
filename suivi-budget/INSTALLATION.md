@@ -58,7 +58,7 @@ Clique sur **💾 Enregistrer** (icône disquette).
 3. Renseigne :
    - **Description** : `Budget Nolhan`
    - **Exécuter en tant que** : **Moi** (`mducheman@gmail.com`)
-   - **Qui a accès** : **Toute personne disposant d'un compte Google**
+   - **Qui a accès** : **Toute personne** *(indispensable pour que ton épouse, sans compte Google, puisse ouvrir l'app — l'accès est protégé par le **code PIN**, voir plus bas)*
 4. **Déployer**.
 5. Google demande d'**autoriser** → choisis ton compte → « Paramètres avancés » → « Accéder à … (non sécurisé) » → **Autoriser**.
    *(C'est normal : Google prévient pour toute app perso non vérifiée. C'est la tienne.)*
@@ -96,6 +96,18 @@ Pour que les emails (solde bas, rappel loyer, récap hebdo) partent tout seuls :
 
 ---
 
+## 🔒 Code PIN (sécurité)
+
+Comme l'app est ouverte à « Toute personne » (pour ta femme sans compte Google), elle est **protégée par un code PIN** vérifié côté serveur — sans le bon code, impossible de voir ou saisir quoi que ce soit.
+
+- **Code par défaut : `1234`** → **change-le** dans l'onglet `Paramètres` (clé `code_pin`).
+- Chacun le saisit une fois en ouvrant l'app.
+- Pour **désactiver** le verrouillage : laisse la valeur `code_pin` **vide**.
+
+> Après avoir changé le PIN dans le Sheet, il est actif immédiatement (pas besoin de re-déployer).
+
+---
+
 ## 🔧 Réglages (onglet « Paramètres » du classeur)
 
 Tout est modifiable **sans toucher au code**, directement dans l'onglet `Paramètres` :
@@ -108,6 +120,7 @@ Tout est modifiable **sans toucher au code**, directement dans l'onglet `Paramè
 | `seuil_solde_eur` | Seuil de l'alerte solde bas (100 €) |
 | `taux_cad_eur_manuel` | Taux de secours si la conversion auto échoue |
 | `recap_hebdo` | `oui` / `non` pour le récap du dimanche |
+| `code_pin` | Code d'accès de l'app (vide = pas de verrouillage) |
 
 Le taux de change automatique se met à jour tout seul (cellule `taux_cad_eur_auto`).
 

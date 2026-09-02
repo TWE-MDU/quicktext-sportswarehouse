@@ -60,7 +60,8 @@ Envoyés à `mducheman@gmail.com`, `ducheman.nolhan@gmail.com`, `nancydemaestri@
 - **EmploiDuTemps** — les cours.
 - **Paramètres** — sources, catégories, emails, seuil, taux, options (tout réglable sans code).
 
-## Confidentialité
+## Sécurité & confidentialité
 
-Tout reste dans **ton** compte Google. L'app s'exécute en ton nom et n'écrit que dans **ton** classeur.
-Le lien de l'app est à garder privé à la famille.
+- **Code PIN** vérifié côté serveur : l'app est ouverte par lien (pour permettre l'accès sans compte Google), mais aucune donnée n'est lisible sans le bon code. PIN par défaut `1234`, à changer dans l'onglet `Paramètres` (clé `code_pin`).
+- Tout reste dans **ton** compte Google. L'app s'exécute en ton nom et n'écrit que dans **ton** classeur.
+- Le lien de l'app est à garder privé à la famille.

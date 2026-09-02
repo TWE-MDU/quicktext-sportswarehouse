@@ -4,6 +4,7 @@
  * ============================================================ */
 var APP = {
   config: null,
+  token: null,              // jeton de session obtenu après le PIN
   type: 'Dépense',
   devise: 'CAD',
   deviseAffichage: 'EUR',   // affichage du solde (EUR par défaut)
@@ -58,15 +59,64 @@ document.querySelectorAll('.tabbar button').forEach(function (b) {
  * ============================================================ */
 window.addEventListener('load', function () {
   $('in-date').value = new Date().toISOString().slice(0, 10);
+  // Étape 1 : l'app a-t-elle un code PIN ?
   google.script.run
-    .withSuccessHandler(function (cfg) {
-      APP.config = cfg;
-      remplirCategories();
-      majConversionLive();
-      $('header-sub').textContent = 'Bonjour ' + cfg.utilisateur + ' — 1 $ CAD ≈ ' + cfg.tauxCadEur.toFixed(3) + ' €';
+    .withSuccessHandler(function (e) {
+      if (e && e.verrou) {
+        afficherVerrou();
+      } else {
+        deverrouiller('');   // pas de PIN : ouverture directe
+      }
     })
     .withFailureHandler(erreur)
-    .getConfig();
+    .getEtatVerrou();
+});
+
+/* ---------- Verrouillage ---------- */
+function afficherVerrou() {
+  $('lock').classList.remove('hidden');
+  setTimeout(function () { $('pin-input').focus(); }, 200);
+}
+
+function deverrouiller(pin) {
+  var btn = $('btn-pin');
+  if (btn) { btn.disabled = true; btn.textContent = 'Vérification…'; }
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Déverrouiller'; }
+      if (!res || !res.ok) {
+        $('pin-err').classList.remove('hidden');
+        $('pin-input').value = '';
+        $('pin-input').focus();
+        return;
+      }
+      APP.token = res.jeton;
+      APP.config = res.config;
+      $('lock').classList.add('hidden');
+      demarrerApp();
+    })
+    .withFailureHandler(function (e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Déverrouiller'; }
+      erreur(e);
+    })
+    .deverrouiller(pin);
+}
+
+function demarrerApp() {
+  remplirCategories();
+  majConversionLive();
+  $('header-sub').textContent = 'Bonjour ' + APP.config.utilisateur + ' — 1 $ CAD ≈ ' + APP.config.tauxCadEur.toFixed(3) + ' €';
+}
+
+// Boutons / touche Entrée du PIN
+document.addEventListener('DOMContentLoaded', function () {
+  $('btn-pin').addEventListener('click', function () {
+    $('pin-err').classList.add('hidden');
+    deverrouiller($('pin-input').value);
+  });
+  $('pin-input').addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); $('btn-pin').click(); }
+  });
 });
 
 /* ============================================================
@@ -139,7 +189,7 @@ $('btn-ajouter').addEventListener('click', function () {
     .withFailureHandler(function (e) {
       btn.disabled = false; btn.textContent = 'Enregistrer'; erreur(e);
     })
-    .ajouterTransaction({
+    .ajouterTransaction(APP.token, {
       type: APP.type,
       montant: montant,
       devise: APP.devise,
@@ -157,7 +207,7 @@ function chargerBudget() {
   google.script.run
     .withSuccessHandler(function (d) { APP.cache.budget = d; rendreBudget(d); })
     .withFailureHandler(erreur)
-    .getDashboard();
+    .getDashboard(APP.token);
 }
 
 function rendreBudget(d) {
@@ -239,7 +289,7 @@ function supprimerTx(id) {
   google.script.run
     .withSuccessHandler(function (d) { APP.cache.budget = d; rendreBudget(d); toast('Supprimé'); })
     .withFailureHandler(erreur)
-    .supprimerTransaction(id);
+    .supprimerTransaction(APP.token, id);
 }
 
 function labelVoyant(c) { return c === 'vert' ? 'À jour' : (c === 'orange' ? 'Bientôt' : 'Retard'); }
@@ -252,7 +302,7 @@ function chargerLoyer() {
   google.script.run
     .withSuccessHandler(function (d) { APP.cache.loyer = d; rendreLoyer(d); })
     .withFailureHandler(erreur)
-    .getLoyer();
+    .getLoyer(APP.token);
 }
 
 function rendreLoyer(d) {
@@ -286,7 +336,7 @@ function basculerLoyer(mois, paye) {
       toast(paye ? '✅ Loyer marqué payé' : 'Marqué non payé');
     })
     .withFailureHandler(erreur)
-    .basculerLoyer(mois, paye);
+    .basculerLoyer(APP.token, mois, paye);
 }
 
 /* ============================================================
@@ -304,7 +354,7 @@ $('btn-cours').addEventListener('click', function () {
       toast('✅ Cours ajouté');
     })
     .withFailureHandler(function (e) { btn.disabled = false; btn.textContent = 'Ajouter le cours'; erreur(e); })
-    .ajouterCours({
+    .ajouterCours(APP.token, {
       matiere: matiere, jour: $('c-jour').value, debut: $('c-debut').value,
       fin: $('c-fin').value, salle: $('c-salle').value, prof: $('c-prof').value
     });
@@ -338,7 +388,7 @@ $('btn-upload').addEventListener('click', function () {
       toast('✅ Fichier importé');
     })
     .withFailureHandler(function (e) { btn.disabled = false; btn.textContent = 'Téléverser le fichier'; erreur(e); })
-    .televerserFichierEmploi(fic.b64, fic.nom, fic.type);
+    .televerserFichierEmploi(APP.token, fic.b64, fic.nom, fic.type);
 });
 
 function ajouterLienFichier(nom, url) {
@@ -353,7 +403,7 @@ function chargerCours() {
   google.script.run
     .withSuccessHandler(function (d) { APP.cache.cours = d; rendreCours(d); })
     .withFailureHandler(erreur)
-    .getEmploiDuTemps();
+    .getEmploiDuTemps(APP.token);
 }
 
 function rendreCours(d) {
@@ -382,7 +432,7 @@ function supprimerCours(id) {
   google.script.run
     .withSuccessHandler(function (d) { APP.cache.cours = d; rendreCours(d); toast('Supprimé'); })
     .withFailureHandler(erreur)
-    .supprimerCours(id);
+    .supprimerCours(APP.token, id);
 }
 
 /* ============================================================

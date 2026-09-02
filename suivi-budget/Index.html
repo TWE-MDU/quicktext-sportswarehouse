@@ -140,6 +140,24 @@
 
   <div class="toast" id="toast"></div>
 
+  <!-- ================= VERROUILLAGE PIN ================= -->
+  <div id="lock" class="lock hidden">
+    <div class="lock-box">
+      <div class="lock-badge">
+        <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
+          <circle cx="32" cy="32" r="29" fill="#ffffff" stroke="#d23b4e" stroke-width="3.5"/>
+          <text x="32" y="41" text-anchor="middle" font-family="Georgia, serif" font-size="27" font-weight="700" fill="#3c5c85" letter-spacing="-1">LD</text>
+        </svg>
+      </div>
+      <h2>Les Duch 🍁 Canada</h2>
+      <p class="muted" style="margin:2px 0 16px">Entre le code d'accès</p>
+      <input id="pin-input" type="password" inputmode="numeric" autocomplete="off"
+             maxlength="10" placeholder="••••" class="pin-field">
+      <div id="pin-err" class="pin-err hidden">Code incorrect, réessaie.</div>
+      <button class="btn" id="btn-pin" style="margin-top:14px">Déverrouiller</button>
+    </div>
+  </div>
+
   <?!= include('JavaScript'); ?>
 </body>
 </html>
