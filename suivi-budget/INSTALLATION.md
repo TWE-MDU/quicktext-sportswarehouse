@@ -7,19 +7,20 @@ Aucune compétence technique requise : c'est du copier-coller.
 
 ---
 
-## Étape 1 — Créer le classeur
+## Étape 1 — Créer le projet Apps Script
 
-1. Va sur **[sheets.new](https://sheets.new)** (connecté à **ton** compte : `mducheman@gmail.com`).
-2. Renomme le classeur, en haut à gauche, par ex. **« Budget Nolhan »**.
+Deux méthodes, au choix (les deux marchent, le code crée sa feuille de données tout seul) :
 
-> Les onglets (Transactions, Loyer, EmploiDuTemps, Paramètres) seront créés **automatiquement** au premier lancement — tu n'as rien à préparer.
+- **Simple** : va sur **[script.new](https://script.new)** (connecté à **ton** compte `mducheman@gmail.com`). Un « Projet sans titre » s'ouvre — renomme-le en haut à gauche, ex. **« Budget Nolhan »**.
+- **Ou** depuis un Google Sheet existant : **Extensions → Apps Script**.
+
+> 📁 **Le classeur de données est créé automatiquement** au premier lancement (tu le trouveras dans ton Drive sous le nom **« Budget Nolhan — Données »**). Tu n'as aucune feuille à préparer.
 
 ---
 
-## Étape 2 — Ouvrir l'éditeur de script
+## Étape 2 — Ouvrir l'éditeur
 
-1. Dans le menu du classeur : **Extensions → Apps Script**.
-2. Une nouvelle fenêtre s'ouvre (l'éditeur de code).
+Tu es déjà dans l'éditeur de code (l'icône **`< >`** dans la barre de gauche). C'est là qu'on colle les fichiers.
 
 ---
 
@@ -69,9 +70,12 @@ Clique sur **💾 Enregistrer** (icône disquette).
 
 Pour que les emails (solde bas, rappel loyer, récap hebdo) partent tout seuls :
 
-1. Dans l'éditeur, en haut, sélectionne la fonction **`installerDeclencheurs`** dans le menu déroulant.
-2. Clique sur **▶ Exécuter**.
-3. Autorise si demandé. C'est fait : vérification quotidienne (8h) + récap le dimanche (18h).
+1. Reviens dans l'**Éditeur** : clique sur l'icône **`< >`** dans la barre de gauche.
+   *(Le sélecteur de fonction n'apparaît QUE dans l'éditeur, pas sur la page « Exécutions ».)*
+2. Ouvre le fichier **`Code.gs`**.
+3. Tout en haut, à côté des boutons **▶ Exécuter / Déboguer**, il y a un **menu déroulant de fonctions** (il affiche sûrement `doGet`). Clique dessus et choisis **`installerDeclencheurs`**.
+4. Clique sur **▶ Exécuter**. Autorise si demandé.
+5. C'est fait : vérification quotidienne (8h) + récap le dimanche (18h). Un message vert confirme l'installation.
 
 ---
 

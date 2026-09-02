@@ -80,8 +80,27 @@ function include(nom) {
  * INITIALISATION DU CLASSEUR
  * ============================================================ */
 
+/**
+ * Renvoie le classeur de données, quelle que soit la façon dont le projet a
+ * été créé :
+ *   1) si un ID est mémorisé (déjà utilisé une fois) -> on l'ouvre ;
+ *   2) si le script est lié à une feuille (Extensions -> Apps Script) -> on l'utilise ;
+ *   3) sinon (projet autonome) -> on CRÉE un classeur dédié et on retient son ID.
+ */
 function getClasseur_() {
-  return SpreadsheetApp.getActiveSpreadsheet();
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('SPREADSHEET_ID');
+  if (id) {
+    try { return SpreadsheetApp.openById(id); } catch (e) { /* recréé plus bas */ }
+  }
+  var actif = SpreadsheetApp.getActiveSpreadsheet();
+  if (actif) {
+    props.setProperty('SPREADSHEET_ID', actif.getId());
+    return actif;
+  }
+  var neuf = SpreadsheetApp.create('Budget Nolhan — Données');
+  props.setProperty('SPREADSHEET_ID', neuf.getId());
+  return neuf;
 }
 
 /** Crée les onglets et les données de départ si nécessaire. Idempotent. */
@@ -134,6 +153,14 @@ function ensureSetup_() {
     pa.setFrozenRows(1);
     pa.setColumnWidth(1, 180);
     pa.setColumnWidth(2, 320);
+  }
+
+  // Supprime la feuille vide par défaut (« Feuille 1 » / « Sheet1 ») si présente
+  if (ss.getSheets().length > 1) {
+    ['Feuille 1', 'Sheet1', 'Feuille1'].forEach(function (n) {
+      var f = ss.getSheetByName(n);
+      if (f && f.getLastRow() === 0) { try { ss.deleteSheet(f); } catch (e) {} }
+    });
   }
 }
 
