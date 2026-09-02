@@ -242,7 +242,7 @@ function convertir_(montant, devise) {
   return { cad: arrondi_(m), eur: arrondi_(m * taux) };
 }
 
-function arrondi_(x) { return Math.round(x * 100) / 100; }
+function arrondi_(x) { x = Number(x); if (isNaN(x)) x = 0; return Math.round(x * 100) / 100; }
 
 /* ============================================================
  * SÉCURITÉ – VERROUILLAGE PAR CODE PIN
@@ -418,11 +418,20 @@ function lireLoyer_() {
   return v.map(function (r, idx) {
     return {
       ligne: idx + 2,
-      mois: r[0], libelle: r[1], montant: r[2],
+      mois: normMois_(r[0]), libelle: r[1], montant: r[2],
       paye: String(r[3]).trim() === 'Payé',
       datePaiement: r[4], auteur: r[5]
     };
   });
+}
+
+/** Normalise un mois en clé « AAAA-MM », que la cellule soit texte ou date. */
+function normMois_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, TZ, 'yyyy-MM');
+  var s = String(v).trim();
+  var m = s.match(/^(\d{4})-(\d{1,2})/);   // « 2026-8 » ou « 2026-08 »
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2);
+  return s;
 }
 
 /** Liste complète de l'échéancier (pour l'écran Loyer, protégé par PIN). */
@@ -452,7 +461,7 @@ function basculerLoyer(jeton, mois, paye) {
   var v = sh.getDataRange().getValues();
   var auteur = (Session.getActiveUser().getEmail() || 'inconnu').split('@')[0];
   for (var i = 1; i < v.length; i++) {
-    if (v[i][0] === mois) {
+    if (normMois_(v[i][0]) === mois) {
       sh.getRange(i + 1, 4).setValue(paye ? 'Payé' : 'Non payé');
       sh.getRange(i + 1, 5).setValue(paye ? new Date() : '');
       sh.getRange(i + 1, 6).setValue(paye ? auteur : '');
@@ -487,6 +496,7 @@ function getStatutLoyer_() {
   var limite = dateLimite_(prochainDu.mois); // 25 du mois précédent
   var aujourdhui = dateAujourdhui_();
   var joursRestants = Math.floor((limite - aujourdhui) / 86400000);
+  if (isNaN(joursRestants)) joursRestants = 999; // sécurité : jamais NaN
 
   var couleur, titre, message;
   if (joursRestants < 0) {
