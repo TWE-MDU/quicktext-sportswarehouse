@@ -141,7 +141,7 @@
   <div class="toast" id="toast"></div>
 
   <!-- ================= VERROUILLAGE PIN ================= -->
-  <div id="lock" class="lock hidden">
+  <div id="lock" class="lock">
     <div class="lock-box">
       <div class="lock-badge">
         <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
@@ -155,6 +155,16 @@
              maxlength="10" placeholder="••••" class="pin-field">
       <div id="pin-err" class="pin-err hidden">Code incorrect, réessaie.</div>
       <button class="btn" id="btn-pin" style="margin-top:14px">Déverrouiller</button>
+    </div>
+  </div>
+
+  <!-- ================= QUI UTILISE L'APP ? ================= -->
+  <div id="whois" class="lock hidden">
+    <div class="lock-box">
+      <div style="font-size:34px">🍁</div>
+      <h2>Qui utilise l'app ?</h2>
+      <p class="muted" style="margin:2px 0 16px">On s'en souviendra sur ce téléphone.</p>
+      <div id="whois-list"></div>
     </div>
   </div>
 

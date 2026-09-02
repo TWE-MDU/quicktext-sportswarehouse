@@ -5,6 +5,7 @@
 var APP = {
   config: null,
   token: null,              // jeton de session obtenu après le PIN
+  profil: null,             // prénom choisi (Papa / Maman / Nolhan)
   type: 'Dépense',
   devise: 'CAD',
   deviseAffichage: 'EUR',   // affichage du solde (EUR par défaut)
@@ -105,7 +106,37 @@ function deverrouiller(pin) {
 function demarrerApp() {
   remplirCategories();
   majConversionLive();
-  $('header-sub').textContent = 'Bonjour ' + APP.config.utilisateur + ' — 1 $ CAD ≈ ' + APP.config.tauxCadEur.toFixed(3) + ' €';
+  var p = null;
+  try { p = localStorage.getItem('profil_duch'); } catch (e) {}
+  if (p && APP.config.prenoms.indexOf(p) !== -1) {
+    APP.profil = p;
+    majGreeting();
+  } else {
+    afficherQuiEs();
+  }
+}
+
+/* ---------- Profil (qui utilise l'app) ---------- */
+function afficherQuiEs() {
+  var box = $('whois-list');
+  box.innerHTML = APP.config.prenoms.map(function (nom) {
+    return '<button class="btn" style="margin-bottom:10px" onclick="choisirProfil(\'' +
+      nom.replace(/'/g, "\\'") + '\')">' + echap(nom) + '</button>';
+  }).join('');
+  $('whois').classList.remove('hidden');
+}
+
+function choisirProfil(nom) {
+  APP.profil = nom;
+  try { localStorage.setItem('profil_duch', nom); } catch (e) {}
+  $('whois').classList.add('hidden');
+  majGreeting();
+}
+
+function majGreeting() {
+  $('header-sub').innerHTML = 'Bonjour ' + echap(APP.profil) +
+    ' 🍁 · 1 $ CAD ≈ ' + APP.config.tauxCadEur.toFixed(3) + ' €' +
+    ' · <span style="text-decoration:underline;cursor:pointer" onclick="afficherQuiEs()">changer</span>';
 }
 
 // Boutons / touche Entrée du PIN
@@ -195,7 +226,8 @@ $('btn-ajouter').addEventListener('click', function () {
       devise: APP.devise,
       categorie: $('in-categorie').value,
       note: $('in-note').value,
-      date: $('in-date').value
+      date: $('in-date').value,
+      auteur: APP.profil
     });
 });
 

@@ -24,6 +24,9 @@ var FEUILLES = {
 // Sources d'argent reçu (menu déroulant côté saisie)
 var SOURCES_DEFAUT = ['Papa & Nancy', 'Maman', 'Bourse', 'Job étudiant'];
 
+// Profils / prénoms (qui utilise l'app) — sert au « Bonjour X » et à l'auteur
+var PRENOMS_DEFAUT = ['Papa', 'Nancy', 'Nolhan'];
+
 // Catégories de dépenses courantes (le LOYER est géré à part, il n'est pas ici)
 var CATEGORIES_DEFAUT = [
   'Courses', 'Restaurant', 'Transport', 'Téléphone', 'Santé',
@@ -85,25 +88,25 @@ function include(nom) {
  * ============================================================ */
 
 /**
- * Renvoie le classeur de données, quelle que soit la façon dont le projet a
- * été créé :
- *   1) si un ID est mémorisé (déjà utilisé une fois) -> on l'ouvre ;
- *   2) si le script est lié à une feuille (Extensions -> Apps Script) -> on l'utilise ;
- *   3) sinon (projet autonome) -> on CRÉE un classeur dédié et on retient son ID.
+ * Renvoie le classeur de données — TOUJOURS un vrai Google Sheets dédié.
+ *
+ * On n'adopte jamais la feuille « active » : si le projet est rattaché à un
+ * fichier Excel (.xlsx), Apps Script ne peut pas y écrire les formules ni tout
+ * lire correctement. On crée donc notre propre classeur natif et on retient
+ * son ID. (Ancienne clé SPREADSHEET_ID ignorée volontairement.)
  */
 function getClasseur_() {
   var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty('SPREADSHEET_ID');
+  var id = props.getProperty('DATA_SHEET_ID');
   if (id) {
-    try { return SpreadsheetApp.openById(id); } catch (e) { /* recréé plus bas */ }
-  }
-  var actif = SpreadsheetApp.getActiveSpreadsheet();
-  if (actif) {
-    props.setProperty('SPREADSHEET_ID', actif.getId());
-    return actif;
+    try {
+      var existant = SpreadsheetApp.openById(id);
+      existant.getName();                 // force l'accès (échoue si supprimé)
+      return existant;
+    } catch (e) { /* recréé ci-dessous */ }
   }
   var neuf = SpreadsheetApp.create('Budget Nolhan — Données');
-  props.setProperty('SPREADSHEET_ID', neuf.getId());
+  props.setProperty('DATA_SHEET_ID', neuf.getId());
   return neuf;
 }
 
@@ -146,6 +149,7 @@ function ensureSetup_() {
     pa = ss.insertSheet(FEUILLES.PARAMS);
     pa.appendRow(['Clé', 'Valeur']);
     pa.appendRow(['sources', SOURCES_DEFAUT.join(', ')]);
+    pa.appendRow(['prenoms', PRENOMS_DEFAUT.join(', ')]);
     pa.appendRow(['categories', CATEGORIES_DEFAUT.join(', ')]);
     pa.appendRow(['emails_alerte', EMAILS_DEFAUT]);
     pa.appendRow(['seuil_solde_eur', SEUIL_SOLDE_EUR_DEFAUT]);
@@ -284,10 +288,10 @@ function deverrouiller(pin) {
 function configInterne_() {
   return {
     sources: listeDepuisParam_('sources', SOURCES_DEFAUT),
+    prenoms: listeDepuisParam_('prenoms', PRENOMS_DEFAUT),
     categories: listeDepuisParam_('categories', CATEGORIES_DEFAUT),
     tauxCadEur: getTauxCadEur_(),
-    seuilEur: parseFloat(getParam_('seuil_solde_eur', SEUIL_SOLDE_EUR_DEFAUT)),
-    utilisateur: (Session.getActiveUser().getEmail() || '').split('@')[0] || 'famille'
+    seuilEur: parseFloat(getParam_('seuil_solde_eur', SEUIL_SOLDE_EUR_DEFAUT))
   };
 }
 
@@ -381,7 +385,7 @@ function ajouterTransaction(jeton, data) {
   var conv = convertir_(montant, devise);
   var date = data.date ? new Date(data.date) : new Date();
   var id = 'TX' + new Date().getTime();
-  var auteur = (Session.getActiveUser().getEmail() || 'inconnu').split('@')[0];
+  var auteur = (data.auteur || (Session.getActiveUser().getEmail() || 'famille').split('@')[0]);
 
   sh.appendRow([
     id,

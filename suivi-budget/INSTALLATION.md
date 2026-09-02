@@ -14,7 +14,9 @@ Deux méthodes, au choix (les deux marchent, le code crée sa feuille de donnée
 - **Simple** : va sur **[script.new](https://script.new)** (connecté à **ton** compte `mducheman@gmail.com`). Un « Projet sans titre » s'ouvre — renomme-le en haut à gauche, ex. **« Budget Nolhan »**.
 - **Ou** depuis un Google Sheet existant : **Extensions → Apps Script**.
 
-> 📁 **Le classeur de données est créé automatiquement** au premier lancement (tu le trouveras dans ton Drive sous le nom **« Budget Nolhan — Données »**). Tu n'as aucune feuille à préparer.
+> 📁 **Le classeur de données est créé automatiquement** au premier lancement, en **vrai Google Sheets** (jamais un fichier Excel), dans ton Drive sous le nom **« Budget Nolhan — Données »**. C'est là que tu changeras le PIN, les prénoms, etc. (onglet `Paramètres`). Tu n'as aucune feuille à préparer.
+>
+> ⚠️ **Important :** ne rattache pas le projet à un fichier **Excel (.xlsx)** — Apps Script n'y sait pas tout faire (formules, lectures). Si tu passes par [script.new](https://script.new), tu n'as pas ce souci : l'app fabrique elle-même son Google Sheets.
 
 ---
 
@@ -115,6 +117,7 @@ Tout est modifiable **sans toucher au code**, directement dans l'onglet `Paramè
 | Clé | Rôle |
 |---|---|
 | `sources` | Qui envoie de l'argent (menu déroulant) |
+| `prenoms` | Prénoms proposés à l'ouverture (Papa, Nancy, Nolhan) |
 | `categories` | Catégories de dépenses |
 | `emails_alerte` | Adresses qui reçoivent les alertes (séparées par des virgules) |
 | `seuil_solde_eur` | Seuil de l'alerte solde bas (100 €) |
