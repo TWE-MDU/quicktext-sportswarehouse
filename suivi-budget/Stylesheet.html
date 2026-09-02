@@ -237,4 +237,18 @@
     padding: 14px 12px;
   }
   .pin-err { color: var(--red); font-size: 13px; margin-top: 10px; font-weight: 600; }
+  .lock-box { max-height: 92vh; overflow: auto; }
+  .modal-box { max-width: 400px; text-align: left; }
+
+  /* Graphique historique mensuel */
+  .hist-legend { display: flex; gap: 16px; justify-content: center; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+  .hist-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: middle; }
+  .hist-scroll { overflow-x: auto; }
+  .hist-chart { display: flex; align-items: flex-end; gap: 14px; height: 150px; padding: 4px 2px 0; min-width: min-content; }
+  .hist-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .hist-bars { display: flex; align-items: flex-end; gap: 4px; height: 118px; }
+  .hist-bar { width: 16px; border-radius: 5px 5px 0 0; min-height: 2px; transition: height .3s; }
+  .hist-bar.recu { background: var(--recu); }
+  .hist-bar.dep { background: var(--dep); }
+  .hist-lbl { font-size: 11px; color: var(--muted); margin-top: 6px; white-space: nowrap; }
 </style>

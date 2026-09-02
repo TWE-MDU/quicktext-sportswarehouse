@@ -334,19 +334,31 @@ function dashboardInterne_() {
   var totalRecuEur = 0, totalDepEur = 0;
   var recuMoisEur = 0, depMoisEur = 0;
   var parCategorie = {};
+  var parMois = {}; // { 'yyyy-MM': { recu, dep } }
 
   tx.forEach(function (t) {
-    var moisT = Utilities.formatDate(new Date(t.date), TZ, 'yyyy-MM');
+    var moisT = normDate_(t.date).slice(0, 7); // yyyy-MM
+    if (!parMois[moisT]) parMois[moisT] = { recu: 0, dep: 0 };
     if (t.type === 'Reçu') {
       totalRecuEur += t.eur;
+      parMois[moisT].recu += t.eur;
       if (moisT === moisCourant) recuMoisEur += t.eur;
     } else {
       totalDepEur += t.eur;
+      parMois[moisT].dep += t.eur;
       if (moisT === moisCourant) {
         depMoisEur += t.eur;
         parCategorie[t.cat] = (parCategorie[t.cat] || 0) + t.eur;
       }
     }
+  });
+
+  // Historique : 6 derniers mois maximum, du plus ancien au plus récent
+  var historique = Object.keys(parMois).sort().slice(-6).map(function (m) {
+    return {
+      mois: m, libelle: moisCourt_(m),
+      recuEur: arrondi_(parMois[m].recu), depEur: arrondi_(parMois[m].dep)
+    };
   });
 
   var soldeEur = arrondi_(totalRecuEur - totalDepEur);
@@ -370,6 +382,7 @@ function dashboardInterne_() {
     tauxCadEur: taux,
     categories: cats,
     recentes: tx.slice(-8).reverse(),
+    historique: historique,
     loyer: getStatutLoyer_()
   };
 }
@@ -438,7 +451,32 @@ function supprimerTransaction(jeton, id) {
   var sh = getClasseur_().getSheetByName(FEUILLES.TRANSACTIONS);
   var v = sh.getDataRange().getValues();
   for (var i = v.length - 1; i >= 1; i--) {
-    if (v[i][0] === id) { sh.deleteRow(i + 1); break; }
+    if (String(v[i][0]) === id) { sh.deleteRow(i + 1); break; }
+  }
+  return dashboardInterne_();
+}
+
+/** Modifie une opération existante. data comme ajouterTransaction. */
+function modifierTransaction(jeton, id, data) {
+  verifierAcces_(jeton);
+  var sh = getClasseur_().getSheetByName(FEUILLES.TRANSACTIONS);
+  var montant = parseFloat(data.montant);
+  if (!montant || montant <= 0) throw new Error('Montant invalide.');
+  var devise = (data.devise === 'EUR') ? 'EUR' : 'CAD';
+  var type = (data.type === 'Reçu') ? 'Reçu' : 'Dépense';
+  var conv = convertir_(montant, devise);
+  var date = data.date ? new Date(data.date) : new Date();
+  var v = sh.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]) === id) {
+      var r = i + 1;
+      sh.getRange(r, 2, 1, 8).setValues([[
+        Utilities.formatDate(date, TZ, 'yyyy-MM-dd'),
+        type, montant, devise, conv.cad, conv.eur,
+        data.categorie || '', data.note || ''
+      ]]);
+      break;
+    }
   }
   return dashboardInterne_();
 }
@@ -752,6 +790,15 @@ var MOIS_FR = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
 function moisJoli_(cle) {
   var p = String(cle).split('-');
   return MOIS_FR[parseInt(p[1], 10) - 1] + ' ' + p[0];
+}
+
+var MOIS_COURT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
+  'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+/** '2026-11' -> 'nov. 26' (pour l'axe du graphique) */
+function moisCourt_(cle) {
+  var p = String(cle).split('-');
+  return MOIS_COURT[parseInt(p[1], 10) - 1] + ' ' + p[0].slice(2);
 }
 
 /** '2026-11' -> '2026-10' */

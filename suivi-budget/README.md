@@ -21,7 +21,8 @@ facilement au smartphone par toute la famille. Construite en **Google Apps Scrip
 ### 📊 Tableau de bord
 - **Solde d'argent de poche** (reçu − dépenses) en gros, avec **bascule EUR ⇄ CAD**.
 - Totaux du mois (reçu / dépensé), répartition des dépenses par catégorie.
-- Dernières opérations (suppression possible).
+- **Graphique historique mensuel** (reçu vs dépenses, 6 derniers mois).
+- Dernières opérations, avec **modification** et suppression.
 - **Alerte email** quand le solde passe **sous 100 €**.
 
 ### 🏠 Suivi du loyer (Plaza 3)

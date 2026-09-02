@@ -168,6 +168,38 @@
     </div>
   </div>
 
+  <!-- ================= MODIFIER UNE OPÉRATION ================= -->
+  <div id="edit" class="lock hidden">
+    <div class="lock-box modal-box">
+      <h2 style="text-align:center;margin-bottom:14px">Modifier l'opération</h2>
+      <label class="field"><span>Type</span>
+        <div class="seg" id="e-seg-type">
+          <button type="button" data-type="Dépense">➖ Dépense</button>
+          <button type="button" data-type="Reçu">➕ Reçu</button>
+        </div>
+      </label>
+      <label class="field"><span>Montant</span>
+        <div class="row2">
+          <input id="e-montant" type="number" inputmode="decimal" step="0.01" min="0">
+          <div class="seg" id="e-seg-devise">
+            <button type="button" data-dev="CAD">🇨🇦 CAD</button>
+            <button type="button" data-dev="EUR">🇪🇺 EUR</button>
+          </div>
+        </div>
+      </label>
+      <label class="field"><span id="e-lbl-cat">Catégorie</span><select id="e-categorie"></select></label>
+      <div class="row2">
+        <label class="field"><span>Date</span><input id="e-date" type="date"></label>
+        <label class="field"><span>Note</span><input id="e-note" type="text"></label>
+      </div>
+      <button class="btn" id="e-save">Enregistrer</button>
+      <div class="row2" style="margin-top:8px">
+        <button class="btn secondary" id="e-cancel">Annuler</button>
+        <button class="btn" id="e-del" style="background:var(--red)">Supprimer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= QUI UTILISE L'APP ? ================= -->
   <div id="whois" class="lock hidden">
     <div class="lock-box">

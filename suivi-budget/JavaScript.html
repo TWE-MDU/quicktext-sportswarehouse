@@ -10,6 +10,7 @@ var APP = {
   devise: 'CAD',
   deviseAffichage: 'EUR',   // affichage du solde (EUR par défaut)
   fichierEnAttente: null,   // { b64, nom, type } pour l'upload emploi du temps
+  edit: { id: null, type: 'Dépense', devise: 'CAD' }, // opération en cours d'édition
   cache: { budget: null, loyer: null, cours: null }
 };
 
@@ -324,9 +325,12 @@ function rendreBudget(d) {
       '<div class="info"><div class="t">' + echap(t.cat || (estRecu ? 'Reçu' : 'Dépense')) + '</div>' +
       '<div class="d">' + formatDate(t.date) + (t.note ? ' · ' + echap(t.note) : '') + ' · ' + origine + '</div></div>' +
       '<div class="amt ' + (estRecu ? 'recu' : 'dep') + '">' + (estRecu ? '+' : '−') + fmt(val, APP.deviseAffichage) + '</div>' +
-      '<button class="del" title="Supprimer" onclick="supprimerTx(\'' + t.id + '\')">🗑️</button>' +
+      '<button class="del" title="Modifier" onclick="ouvrirEdition(\'' + t.id + '\')">✏️</button>' +
       '</div>';
   }).join('') : '<div class="empty">Aucune opération pour le moment</div>';
+
+  // Graphique historique mensuel (reçu vs dépenses)
+  var histHtml = construireHistogramme(d.historique || [], enCad, d.tauxCadEur);
 
   var l = d.loyer;
 
@@ -363,11 +367,40 @@ function rendreBudget(d) {
       '<div class="stat"><div class="k">Dépensé</div><div class="v dep">' + fmt(enCad ? d.depMoisEur / d.tauxCadEur : d.depMoisEur, APP.deviseAffichage) + '</div></div>' +
     '</div></div>' +
 
+    // Historique mensuel (graphique)
+    '<div class="card"><h3>Historique mensuel</h3>' + histHtml + '</div>' +
+
     // Répartition
     '<div class="card"><h3>Répartition des dépenses (mois)</h3>' + catsHtml + '</div>' +
 
     // Dernières opérations
     '<div class="card"><h3>Dernières opérations</h3>' + recentesHtml + '</div>';
+}
+
+/* Construit le graphique à barres (reçu vs dépenses) par mois. */
+function construireHistogramme(hist, enCad, taux) {
+  if (!hist.length) return '<div class="empty">Pas encore d\'historique</div>';
+  var conv = function (eur) { return enCad ? eur / taux : eur; };
+  var max = 1;
+  hist.forEach(function (m) { max = Math.max(max, m.recuEur, m.depEur); });
+
+  var cols = hist.map(function (m) {
+    var hr = Math.max(2, (m.recuEur / max) * 118);
+    var hd = Math.max(2, (m.depEur / max) * 118);
+    return '<div class="hist-col">' +
+      '<div class="hist-bars">' +
+        '<div class="hist-bar recu" style="height:' + hr + 'px" title="Reçu : ' + fmt(conv(m.recuEur), APP.deviseAffichage) + '"></div>' +
+        '<div class="hist-bar dep" style="height:' + hd + 'px" title="Dépensé : ' + fmt(conv(m.depEur), APP.deviseAffichage) + '"></div>' +
+      '</div>' +
+      '<div class="hist-lbl">' + echap(m.libelle) + '</div>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="hist-legend">' +
+      '<span><span class="dot" style="background:var(--recu)"></span>Reçu</span>' +
+      '<span><span class="dot" style="background:var(--dep)"></span>Dépenses</span>' +
+    '</div>' +
+    '<div class="hist-scroll"><div class="hist-chart">' + cols + '</div></div>';
 }
 
 function setDevise(dev) {
@@ -378,12 +411,79 @@ function setDevise(dev) {
 function supprimerTx(id) {
   if (!confirm('Supprimer cette opération ?')) return;
   google.script.run
-    .withSuccessHandler(function (d) { APP.cache.budget = d; rendreBudget(d); toast('Supprimé'); })
+    .withSuccessHandler(function (d) { APP.cache.budget = d; rendreBudget(d); fermerEdition(); toast('Supprimé'); })
     .withFailureHandler(erreur)
     .supprimerTransaction(APP.token, id);
 }
 
 function labelVoyant(c) { return c === 'vert' ? 'À jour' : (c === 'orange' ? 'Bientôt' : 'Retard'); }
+
+/* ---------- Modifier une opération ---------- */
+function ouvrirEdition(id) {
+  var t = (APP.cache.budget && APP.cache.budget.recentes || []).filter(function (x) { return x.id === id; })[0];
+  if (!t) { toast('Opération introuvable'); return; }
+  APP.edit.id = id;
+  edSetType(t.type);
+  edSetDevise(t.devise);
+  $('e-montant').value = t.montant;
+  $('e-date').value = String(t.date).slice(0, 10);
+  $('e-note').value = t.note || '';
+  // sélectionne la bonne catégorie/source
+  setTimeout(function () { $('e-categorie').value = t.cat; }, 0);
+  $('edit').classList.remove('hidden');
+}
+
+function edSetType(type) {
+  APP.edit.type = (type === 'Reçu') ? 'Reçu' : 'Dépense';
+  $('e-seg-type').querySelectorAll('button').forEach(function (b) {
+    b.classList.remove('on-dep', 'on-recu');
+    if (b.dataset.type === APP.edit.type) b.classList.add(APP.edit.type === 'Reçu' ? 'on-recu' : 'on-dep');
+  });
+  $('e-lbl-cat').textContent = (APP.edit.type === 'Reçu') ? 'Reçu de qui ?' : 'Catégorie';
+  var liste = (APP.edit.type === 'Reçu') ? APP.config.sources : APP.config.categories;
+  var sel = $('e-categorie'); var actuel = sel.value;
+  sel.innerHTML = '';
+  liste.forEach(function (c) {
+    var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
+  });
+  if (liste.indexOf(actuel) !== -1) sel.value = actuel;
+}
+
+function edSetDevise(dev) {
+  APP.edit.devise = (dev === 'EUR') ? 'EUR' : 'CAD';
+  $('e-seg-devise').querySelectorAll('button').forEach(function (b) {
+    b.classList.toggle('on-dev', b.dataset.dev === APP.edit.devise);
+  });
+}
+
+function fermerEdition() { $('edit').classList.add('hidden'); APP.edit.id = null; }
+
+document.addEventListener('DOMContentLoaded', function () {
+  $('e-seg-type').querySelectorAll('button').forEach(function (b) {
+    b.addEventListener('click', function () { edSetType(b.dataset.type); });
+  });
+  $('e-seg-devise').querySelectorAll('button').forEach(function (b) {
+    b.addEventListener('click', function () { edSetDevise(b.dataset.dev); });
+  });
+  $('e-cancel').addEventListener('click', fermerEdition);
+  $('e-del').addEventListener('click', function () { if (APP.edit.id) supprimerTx(APP.edit.id); });
+  $('e-save').addEventListener('click', function () {
+    var montant = parseFloat($('e-montant').value);
+    if (!montant || montant <= 0) { toast('Montant invalide'); return; }
+    var btn = this; btn.disabled = true; btn.textContent = 'Enregistrement…';
+    google.script.run
+      .withSuccessHandler(function (d) {
+        APP.cache.budget = d; rendreBudget(d);
+        btn.disabled = false; btn.textContent = 'Enregistrer';
+        fermerEdition(); toast('✅ Modifié');
+      })
+      .withFailureHandler(function (e) { btn.disabled = false; btn.textContent = 'Enregistrer'; erreur(e); })
+      .modifierTransaction(APP.token, APP.edit.id, {
+        type: APP.edit.type, montant: montant, devise: APP.edit.devise,
+        categorie: $('e-categorie').value, note: $('e-note').value, date: $('e-date').value
+      });
+  });
+});
 
 /* ============================================================
  * ÉCRAN LOYER
