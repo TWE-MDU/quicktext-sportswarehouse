@@ -129,6 +129,7 @@ function ensureSetup_() {
     lo = ss.insertSheet(FEUILLES.LOYER);
     lo.appendRow(['Mois', 'Libellé', 'Montant_CAD', 'Statut', 'Date_paiement', 'Auteur']);
     lo.setFrozenRows(1);
+    lo.getRange('A2:A200').setNumberFormat('@'); // « Mois » en texte (évite 2026-08 -> date)
     LOYER_ECHEANCIER.forEach(function (m) {
       lo.appendRow([m.mois, m.libelle, m.montant, m.paye ? 'Payé' : 'Non payé',
         m.paye ? new Date() : '', m.paye ? 'Import initial' : '']);

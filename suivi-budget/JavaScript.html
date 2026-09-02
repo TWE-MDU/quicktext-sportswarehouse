@@ -237,9 +237,30 @@ $('btn-ajouter').addEventListener('click', function () {
 function chargerBudget() {
   if (APP.cache.budget) { rendreBudget(APP.cache.budget); }
   google.script.run
-    .withSuccessHandler(function (d) { APP.cache.budget = d; rendreBudget(d); })
-    .withFailureHandler(erreur)
+    .withSuccessHandler(function (d) {
+      APP.cache.budget = d;
+      try { rendreBudget(d); }
+      catch (err) { afficherErreurZone('budget-content', 'Affichage', err); }
+    })
+    .withFailureHandler(function (e) { afficherErreurZone('budget-content', 'Serveur', e); })
     .getDashboard(APP.token);
+}
+
+/* Affiche un message d'erreur lisible à la place du spinner. */
+function afficherErreurZone(zoneId, origine, e) {
+  var msg = (e && e.message) ? e.message : String(e);
+  $(zoneId).innerHTML =
+    '<div class="card" style="border:1px solid var(--red)">' +
+    '<h3 style="color:var(--red)">⚠️ Erreur (' + echap(origine) + ')</h3>' +
+    '<div style="font-size:13px;word-break:break-word">' + echap(msg) + '</div>' +
+    '<button class="btn secondary small" style="margin-top:12px" onclick="rechargerZone(\'' + zoneId + '\')">Réessayer</button>' +
+    '</div>';
+}
+
+function rechargerZone(zoneId) {
+  if (zoneId === 'budget-content') { APP.cache.budget = null; chargerBudget(); }
+  else if (zoneId === 'loyer-content') { APP.cache.loyer = null; chargerLoyer(); }
+  else if (zoneId === 'cours-content') { APP.cache.cours = null; chargerCours(); }
 }
 
 function rendreBudget(d) {
@@ -332,8 +353,11 @@ function labelVoyant(c) { return c === 'vert' ? 'À jour' : (c === 'orange' ? 'B
 function chargerLoyer() {
   if (APP.cache.loyer) rendreLoyer(APP.cache.loyer);
   google.script.run
-    .withSuccessHandler(function (d) { APP.cache.loyer = d; rendreLoyer(d); })
-    .withFailureHandler(erreur)
+    .withSuccessHandler(function (d) {
+      APP.cache.loyer = d;
+      try { rendreLoyer(d); } catch (err) { afficherErreurZone('loyer-content', 'Affichage', err); }
+    })
+    .withFailureHandler(function (e) { afficherErreurZone('loyer-content', 'Serveur', e); })
     .getLoyer(APP.token);
 }
 
@@ -433,8 +457,11 @@ function ajouterLienFichier(nom, url) {
 function chargerCours() {
   if (APP.cache.cours) rendreCours(APP.cache.cours);
   google.script.run
-    .withSuccessHandler(function (d) { APP.cache.cours = d; rendreCours(d); })
-    .withFailureHandler(erreur)
+    .withSuccessHandler(function (d) {
+      APP.cache.cours = d;
+      try { rendreCours(d); } catch (err) { afficherErreurZone('cours-content', 'Affichage', err); }
+    })
+    .withFailureHandler(function (e) { afficherErreurZone('cours-content', 'Serveur', e); })
     .getEmploiDuTemps(APP.token);
 }
 
