@@ -19,6 +19,13 @@ var APP = {
  * ============================================================ */
 function $(id) { return document.getElementById(id); }
 
+/* Date du jour au format AAAA-MM-JJ, en heure LOCALE (pas UTC). */
+function dateLocale() {
+  var d = new Date();
+  var p = function (n) { return ('0' + n).slice(-2); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
 function fmt(n, devise) {
   n = Number(n) || 0;
   var s = n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -98,7 +105,7 @@ function changerPinUI() {
  * INITIALISATION
  * ============================================================ */
 window.addEventListener('load', function () {
-  $('in-date').value = new Date().toISOString().slice(0, 10);
+  $('in-date').value = dateLocale();
   // Étape 1 : l'app a-t-elle un code PIN ?
   google.script.run
     .withSuccessHandler(function (e) {

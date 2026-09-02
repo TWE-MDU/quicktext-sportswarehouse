@@ -433,17 +433,22 @@ function ajouterTransaction(jeton, data) {
   var devise = (data.devise === 'EUR') ? 'EUR' : 'CAD';
   var type = (data.type === 'Reçu') ? 'Reçu' : 'Dépense';
   var conv = convertir_(montant, devise);
-  var date = data.date ? new Date(data.date) : new Date();
+  var dateStr = jourChoisi_(data.date);   // exactement le jour choisi, sans décalage
   var id = 'TX' + new Date().getTime();
   var auteur = (data.auteur || (Session.getActiveUser().getEmail() || 'famille').split('@')[0]);
 
   sh.appendRow([
-    id,
-    Utilities.formatDate(date, TZ, 'yyyy-MM-dd'),
+    id, dateStr,
     type, montant, devise, conv.cad, conv.eur,
     data.categorie || '', data.note || '', auteur, new Date()
   ]);
   return dashboardInterne_();
+}
+
+/** Renvoie le jour « AAAA-MM-JJ » choisi, sans conversion de fuseau. */
+function jourChoisi_(v) {
+  if (v) return String(v).slice(0, 10);
+  return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
 }
 
 function supprimerTransaction(jeton, id) {
@@ -465,13 +470,13 @@ function modifierTransaction(jeton, id, data) {
   var devise = (data.devise === 'EUR') ? 'EUR' : 'CAD';
   var type = (data.type === 'Reçu') ? 'Reçu' : 'Dépense';
   var conv = convertir_(montant, devise);
-  var date = data.date ? new Date(data.date) : new Date();
+  var dateStr = jourChoisi_(data.date);
   var v = sh.getDataRange().getValues();
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][0]) === id) {
       var r = i + 1;
       sh.getRange(r, 2, 1, 8).setValues([[
-        Utilities.formatDate(date, TZ, 'yyyy-MM-dd'),
+        dateStr,
         type, montant, devise, conv.cad, conv.eur,
         data.categorie || '', data.note || ''
       ]]);
