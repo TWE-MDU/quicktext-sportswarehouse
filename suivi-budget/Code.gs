@@ -196,6 +196,25 @@ function listeDepuisParam_(cle, defaut) {
   return brut.split(',').map(function (s) { return s.trim(); }).filter(String);
 }
 
+/** Écrit (ou crée) un paramètre dans l'onglet Paramètres. */
+function setParam_(cle, valeur) {
+  var pa = getClasseur_().getSheetByName(FEUILLES.PARAMS);
+  var v = pa.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]).trim() === cle) { pa.getRange(i + 1, 2).setValue(valeur); return; }
+  }
+  pa.appendRow([cle, valeur]);
+}
+
+/** Change le code PIN depuis l'app (utilisateur déjà authentifié). */
+function changerPin(jeton, nouveau) {
+  verifierAcces_(jeton);
+  var np = String(nouveau).trim();
+  if (np.length < 3) throw new Error('Le code doit faire au moins 3 caractères.');
+  setParam_('code_pin', np);
+  return { ok: true };
+}
+
 /* ============================================================
  * TAUX DE CHANGE
  * ============================================================ */
@@ -365,11 +384,28 @@ function lireTransactions_() {
   var v = sh.getRange(2, 1, sh.getLastRow() - 1, 11).getValues();
   return v.map(function (r) {
     return {
-      id: r[0], date: r[1], type: r[2], montant: r[3], devise: r[4],
-      cad: r[5], eur: r[6], cat: r[7], note: r[8], auteur: r[9]
+      id: String(r[0]),
+      date: normDate_(r[1]),          // toujours une chaîne « AAAA-MM-JJ »
+      type: String(r[2]),
+      montant: nombre_(r[3]),
+      devise: String(r[4]),
+      cad: nombre_(r[5]),
+      eur: nombre_(r[6]),
+      cat: String(r[7]),
+      note: String(r[8]),
+      auteur: String(r[9])
     };
   });
 }
+
+/** Convertit n'importe quelle valeur de date en chaîne « AAAA-MM-JJ ». */
+function normDate_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, TZ, 'yyyy-MM-dd');
+  return String(v).slice(0, 10);
+}
+
+/** Nombre sûr (jamais NaN/undefined). */
+function nombre_(x) { x = Number(x); return isNaN(x) ? 0 : x; }
 
 /**
  * Ajoute une transaction (reçu ou dépense).

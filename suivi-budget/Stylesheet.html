@@ -45,6 +45,25 @@
   }
   .brand-text { min-width: 0; }
   .leaf-inline { font-size: 15px; }
+  .header-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .hdr-btn {
+    width: 38px; height: 38px; border-radius: 11px; border: none; cursor: pointer;
+    background: rgba(255,255,255,.16); color: #fff; font-size: 20px; line-height: 1;
+    display: grid; place-items: center;
+  }
+  .hdr-btn:active { background: rgba(255,255,255,.3); }
+  .menu-pop {
+    position: fixed; right: 14px; top: 62px; z-index: 60;
+    background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.22);
+    overflow: hidden; min-width: 210px; border: 1px solid var(--line);
+  }
+  .menu-pop button {
+    display: block; width: 100%; text-align: left; padding: 14px 16px;
+    border: none; background: none; font-size: 14.5px; color: var(--ink); cursor: pointer;
+    border-bottom: 1px solid var(--line);
+  }
+  .menu-pop button:last-child { border-bottom: none; }
+  .menu-pop button:active { background: var(--bg); }
   /* Bande décorative rouge/blanche (clin d'œil au drapeau canadien) */
   .brand-strip {
     height: 4px; margin: 0 -18px;

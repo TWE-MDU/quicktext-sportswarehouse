@@ -46,6 +46,10 @@ function ouvrirPage(nom) {
     b.classList.toggle('active', b.dataset.page === nom);
   });
   window.scrollTo(0, 0);
+  // Bouton retour visible partout sauf sur l'accueil (« Ajouter »)
+  var back = $('btn-back');
+  if (back) back.classList.toggle('hidden', nom === 'ajouter');
+  fermerMenu();
   if (nom === 'budget') chargerBudget();
   if (nom === 'loyer') chargerLoyer();
   if (nom === 'cours') chargerCours();
@@ -54,6 +58,40 @@ function ouvrirPage(nom) {
 document.querySelectorAll('.tabbar button').forEach(function (b) {
   b.addEventListener('click', function () { ouvrirPage(b.dataset.page); });
 });
+
+/* ---------- Menu, retour, déconnexion, PIN ---------- */
+function retourAccueil() { ouvrirPage('ajouter'); }
+
+function toggleMenu() { $('menu-pop').classList.toggle('hidden'); }
+function fermerMenu() { var m = $('menu-pop'); if (m) m.classList.add('hidden'); }
+
+// Ferme le menu si on clique ailleurs
+document.addEventListener('click', function (ev) {
+  var m = $('menu-pop');
+  if (!m || m.classList.contains('hidden')) return;
+  if (!m.contains(ev.target) && ev.target.id !== 'btn-menu') fermerMenu();
+});
+
+function seDeconnecter() {
+  fermerMenu();
+  APP.token = null;
+  location.reload();   // ré-affiche l'écran du code PIN
+}
+
+function changerPinUI() {
+  fermerMenu();
+  var nv = prompt('Nouveau code PIN (au moins 3 chiffres) :');
+  if (nv === null) return;
+  nv = String(nv).trim();
+  if (nv.length < 3) { toast('Code trop court (min. 3)'); return; }
+  var confirmer = prompt('Confirme le nouveau code :');
+  if (confirmer === null) return;
+  if (String(confirmer).trim() !== nv) { toast('Les deux codes diffèrent'); return; }
+  google.script.run
+    .withSuccessHandler(function () { toast('✅ Code PIN modifié'); })
+    .withFailureHandler(erreur)
+    .changerPin(APP.token, nv);
+}
 
 /* ============================================================
  * INITIALISATION

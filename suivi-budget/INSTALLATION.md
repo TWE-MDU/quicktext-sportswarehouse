@@ -102,7 +102,8 @@ Pour que les emails (solde bas, rappel loyer, récap hebdo) partent tout seuls :
 
 Comme l'app est ouverte à « Toute personne » (pour ta femme sans compte Google), elle est **protégée par un code PIN** vérifié côté serveur — sans le bon code, impossible de voir ou saisir quoi que ce soit.
 
-- **Code par défaut : `1234`** → **change-le** dans l'onglet `Paramètres` (clé `code_pin`).
+- **Code par défaut : `1234`** → **change-le** directement dans l'app : menu **⋮** (en haut à droite) → **« Changer le code PIN »**. *(Ou via l'onglet `Paramètres`, clé `code_pin`.)*
+- Le menu **⋮** contient aussi **« Se déconnecter »**. Une flèche **←** ramène à l'accueil.
 - Chacun le saisit une fois en ouvrant l'app.
 - Pour **désactiver** le verrouillage : laisse la valeur `code_pin` **vide**.
 

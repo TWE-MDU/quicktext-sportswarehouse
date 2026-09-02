@@ -30,9 +30,19 @@
         <h1>Les Duch <span class="leaf-inline">🍁</span> Canada</h1>
         <div class="sub" id="header-sub">Budget &amp; loyer de Nolhan</div>
       </div>
+      <div class="header-actions">
+        <button id="btn-back" class="hdr-btn hidden" title="Retour" onclick="retourAccueil()">←</button>
+        <button id="btn-menu" class="hdr-btn" title="Menu" onclick="toggleMenu()">⋮</button>
+      </div>
     </div>
     <div class="brand-strip" aria-hidden="true"></div>
   </header>
+
+  <!-- Menu déroulant (hors en-tête pour ne pas être rogné) -->
+  <div id="menu-pop" class="menu-pop hidden">
+    <button onclick="changerPinUI()">🔑 Changer le code PIN</button>
+    <button onclick="seDeconnecter()">🚪 Se déconnecter</button>
+  </div>
 
   <!-- ================= AJOUTER ================= -->
   <section id="page-ajouter" class="page active">
