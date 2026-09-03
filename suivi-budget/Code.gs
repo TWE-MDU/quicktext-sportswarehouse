@@ -143,6 +143,8 @@ function ensureSetup_() {
     et.appendRow(['ID', 'Matière', 'Jour', 'Heure_début', 'Heure_fin', 'Salle', 'Professeur', 'Note', 'Fichier_URL']);
     et.setFrozenRows(1);
   }
+  // Colonnes heures en texte (évite que « 10:00 » devienne un objet heure)
+  et.getRange('D2:E1000').setNumberFormat('@');
 
   // --- Paramètres ---
   var pa = ss.getSheetByName(FEUILLES.PARAMS);
@@ -417,6 +419,17 @@ function normDate_(v) {
   return String(v).slice(0, 10);
 }
 
+/** Convertit une heure (texte ou objet heure) en chaîne « HH:MM ». */
+function normHeure_(v) {
+  if (v === '' || v === null || v === undefined) return '';
+  if (v instanceof Date) {
+    return Utilities.formatDate(v, getClasseur_().getSpreadsheetTimeZone(), 'HH:mm');
+  }
+  var s = String(v).trim();
+  var m = s.match(/^(\d{1,2}):(\d{2})/);
+  return m ? ('0' + m[1]).slice(-2) + ':' + m[2] : s;
+}
+
 /** Nombre sûr (jamais NaN/undefined). */
 function nombre_(x) { x = Number(x); return isNaN(x) ? 0 : x; }
 
@@ -624,8 +637,10 @@ function emploiInterne_() {
   var v = sh.getRange(2, 1, sh.getLastRow() - 1, 9).getValues();
   var cours = v.map(function (r) {
     return {
-      id: r[0], matiere: r[1], jour: r[2], debut: r[3], fin: r[4],
-      salle: r[5], prof: r[6], note: r[7], fichierUrl: r[8]
+      id: String(r[0]), matiere: String(r[1]), jour: String(r[2]),
+      debut: normHeure_(r[3]), fin: normHeure_(r[4]),
+      salle: String(r[5]), prof: String(r[6]), note: String(r[7]),
+      fichierUrl: String(r[8])
     };
   });
   cours.sort(function (a, b) {

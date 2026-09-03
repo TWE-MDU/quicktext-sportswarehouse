@@ -549,9 +549,10 @@ $('btn-cours').addEventListener('click', function () {
   var btn = this; btn.disabled = true; btn.textContent = 'Ajout…';
   google.script.run
     .withSuccessHandler(function (d) {
-      APP.cache.cours = d; rendreCours(d);
-      ['c-matiere', 'c-salle', 'c-debut', 'c-fin', 'c-prof'].forEach(function (i) { $(i).value = ''; });
       btn.disabled = false; btn.textContent = 'Ajouter le cours';
+      ['c-matiere', 'c-salle', 'c-debut', 'c-fin', 'c-prof'].forEach(function (i) { $(i).value = ''; });
+      APP.cache.cours = d;
+      try { rendreCours(d); } catch (err) { afficherErreurZone('cours-content', 'Affichage', err); }
       toast('✅ Cours ajouté');
     })
     .withFailureHandler(function (e) { btn.disabled = false; btn.textContent = 'Ajouter le cours'; erreur(e); })
