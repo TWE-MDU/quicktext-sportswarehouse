@@ -11,7 +11,10 @@ var APP = {
   deviseAffichage: 'EUR',   // affichage du solde (EUR par défaut)
   fichierEnAttente: null,   // { b64, nom, type } pour l'upload emploi du temps
   edit: { id: null, type: 'Dépense', devise: 'CAD' }, // opération en cours d'édition
-  cache: { budget: null, loyer: null, cours: null }
+  pageActuelle: 'ajouter',
+  opsIndex: {},             // id -> opération (pour l'édition depuis n'importe quelle liste)
+  filtre: { periode: 'mois', du: '', au: '', categorie: '' },
+  cache: { budget: null, loyer: null, cours: null, historique: null }
 };
 
 /* ============================================================
@@ -58,9 +61,11 @@ function ouvrirPage(nom) {
   var back = $('btn-back');
   if (back) back.classList.toggle('hidden', nom === 'ajouter');
   fermerMenu();
+  APP.pageActuelle = nom;
   if (nom === 'budget') chargerBudget();
   if (nom === 'loyer') chargerLoyer();
   if (nom === 'cours') chargerCours();
+  if (nom === 'historique') chargerHistorique();
 }
 
 document.querySelectorAll('.tabbar button').forEach(function (b) {
@@ -310,6 +315,7 @@ function rechargerZone(zoneId) {
 }
 
 function rendreBudget(d) {
+  indexerOps(d.recentes);
   var enCad = APP.deviseAffichage === 'CAD';
   var solde = enCad ? d.soldeCad : d.soldeEur;
   var alt = enCad ? fmt(d.soldeEur, 'EUR') : fmt(d.soldeCad, 'CAD');
@@ -381,7 +387,9 @@ function rendreBudget(d) {
     '<div class="card"><h3>Répartition des dépenses (mois)</h3>' + catsHtml + '</div>' +
 
     // Dernières opérations
-    '<div class="card"><h3>Dernières opérations</h3>' + recentesHtml + '</div>';
+    '<div class="card"><h3>Dernières opérations</h3>' + recentesHtml +
+      '<div style="margin-top:12px"><button class="btn secondary small" onclick="ouvrirPage(\'historique\')">Voir tout / filtrer →</button></div>' +
+    '</div>';
 }
 
 /* Construit le graphique à barres (reçu vs dépenses) par mois. */
@@ -418,16 +426,105 @@ function setDevise(dev) {
 function supprimerTx(id) {
   if (!confirm('Supprimer cette opération ?')) return;
   google.script.run
-    .withSuccessHandler(function (d) { APP.cache.budget = d; rendreBudget(d); fermerEdition(); toast('Supprimé'); })
+    .withSuccessHandler(function (d) { fermerEdition(); rafraichirApresModif(d); toast('Supprimé'); })
     .withFailureHandler(erreur)
     .supprimerTransaction(APP.token, id);
+}
+
+function rafraichirApresModif(d) {
+  APP.cache.budget = d;
+  APP.cache.historique = null;            // l'historique doit être recalculé
+  if (APP.pageActuelle === 'historique') chargerHistorique();
+  else rendreBudget(d);
+}
+
+/* ============================================================
+ * ÉCRAN HISTORIQUE (filtres)
+ * ============================================================ */
+function initFiltresHistorique() {
+  // chips de période
+  $('hist-chips').querySelectorAll('button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      APP.filtre.periode = b.dataset.p;
+      $('hist-chips').querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      $('hist-perso').classList.toggle('hidden', b.dataset.p !== 'perso');
+      if (b.dataset.p !== 'perso') { APP.cache.historique = null; chargerHistorique(); }
+    });
+  });
+  // dates perso
+  ['hist-du', 'hist-au'].forEach(function (i) {
+    $(i).addEventListener('change', function () {
+      APP.filtre.du = $('hist-du').value; APP.filtre.au = $('hist-au').value;
+      if (APP.filtre.du && APP.filtre.au) { APP.cache.historique = null; chargerHistorique(); }
+    });
+  });
+  // filtre catégorie/source
+  $('hist-cat').addEventListener('change', function () {
+    APP.filtre.categorie = $('hist-cat').value; APP.cache.historique = null; chargerHistorique();
+  });
+}
+
+function remplirFiltreCategories() {
+  var sel = $('hist-cat');
+  if (!APP.config || sel.options.length > 1) return; // déjà rempli
+  var toutes = (APP.config.categories || []).concat(APP.config.sources || []);
+  toutes.forEach(function (c) {
+    var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
+  });
+}
+
+function chargerHistorique() {
+  remplirFiltreCategories();
+  if (APP.cache.historique) rendreHistorique(APP.cache.historique);
+  APP.filtre.du = $('hist-du').value; APP.filtre.au = $('hist-au').value;
+  google.script.run
+    .withSuccessHandler(function (d) {
+      APP.cache.historique = d;
+      try { rendreHistorique(d); } catch (err) { afficherErreurZone('hist-content', 'Affichage', err); }
+    })
+    .withFailureHandler(function (e) { afficherErreurZone('hist-content', 'Serveur', e); })
+    .getOperations(APP.token, APP.filtre);
+}
+
+function rendreHistorique(d) {
+  indexerOps(d.ops);
+  var enCad = APP.deviseAffichage === 'CAD';
+  var conv = function (eur) { return enCad ? eur / d.tauxCadEur : eur; };
+
+  $('hist-totaux').innerHTML =
+    '<div class="peri-totaux">' +
+      '<div class="stat"><div class="k">Reçu (période)</div><div class="v recu">' + fmt(conv(d.totalRecuEur), APP.deviseAffichage) + '</div></div>' +
+      '<div class="stat"><div class="k">Dépensé (période)</div><div class="v dep">' + fmt(conv(d.totalDepEur), APP.deviseAffichage) + '</div></div>' +
+    '</div>' +
+    '<div class="taux-note" style="margin-top:8px">' + d.count + ' opération(s)' +
+      (d.count > d.ops.length ? ' · ' + d.ops.length + ' affichées' : '') + '</div>';
+
+  if (!d.ops.length) { $('hist-content').innerHTML = '<div class="empty">Aucune opération sur cette période</div>'; return; }
+
+  $('hist-content').innerHTML = d.ops.map(function (t) {
+    var estRecu = t.type === 'Reçu';
+    var val = enCad ? t.cad : t.eur;
+    var origine = fmt(t.montant, t.devise);
+    return '<div class="op">' +
+      '<div class="ico ' + (estRecu ? 'recu' : 'dep') + '">' + (estRecu ? '⬇️' : '⬆️') + '</div>' +
+      '<div class="info"><div class="t">' + echap(t.cat || (estRecu ? 'Reçu' : 'Dépense')) + '</div>' +
+      '<div class="d">' + formatDate(t.date) + (t.note ? ' · ' + echap(t.note) : '') + ' · ' + origine +
+        (t.auteur ? ' · ' + echap(t.auteur) : '') + '</div></div>' +
+      '<div class="amt ' + (estRecu ? 'recu' : 'dep') + '">' + (estRecu ? '+' : '−') + fmt(val, APP.deviseAffichage) + '</div>' +
+      '<button class="del" title="Modifier" onclick="ouvrirEdition(\'' + t.id + '\')">✏️</button>' +
+    '</div>';
+  }).join('');
 }
 
 function labelVoyant(c) { return c === 'vert' ? 'À jour' : (c === 'orange' ? 'Bientôt' : 'Retard'); }
 
 /* ---------- Modifier une opération ---------- */
+function indexerOps(liste) {
+  (liste || []).forEach(function (t) { APP.opsIndex[t.id] = t; });
+}
+
 function ouvrirEdition(id) {
-  var t = (APP.cache.budget && APP.cache.budget.recentes || []).filter(function (x) { return x.id === id; })[0];
+  var t = APP.opsIndex[id];
   if (!t) { toast('Opération introuvable'); return; }
   APP.edit.id = id;
   edSetType(t.type);
@@ -466,6 +563,7 @@ function edSetDevise(dev) {
 function fermerEdition() { $('edit').classList.add('hidden'); APP.edit.id = null; }
 
 document.addEventListener('DOMContentLoaded', function () {
+  initFiltresHistorique();
   $('e-seg-type').querySelectorAll('button').forEach(function (b) {
     b.addEventListener('click', function () { edSetType(b.dataset.type); });
   });
@@ -480,9 +578,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var btn = this; btn.disabled = true; btn.textContent = 'Enregistrement…';
     google.script.run
       .withSuccessHandler(function (d) {
-        APP.cache.budget = d; rendreBudget(d);
         btn.disabled = false; btn.textContent = 'Enregistrer';
-        fermerEdition(); toast('✅ Modifié');
+        fermerEdition(); rafraichirApresModif(d); toast('✅ Modifié');
       })
       .withFailureHandler(function (e) { btn.disabled = false; btn.textContent = 'Enregistrer'; erreur(e); })
       .modifierTransaction(APP.token, APP.edit.id, {

@@ -140,10 +140,35 @@
     </div>
   </section>
 
+  <!-- ================= HISTORIQUE ================= -->
+  <section id="page-historique" class="page">
+    <div class="card">
+      <h2>Historique des opérations</h2>
+      <div class="chips" id="hist-chips">
+        <button data-p="7j">7 jours</button>
+        <button data-p="mois" class="on">Ce mois</button>
+        <button data-p="moisDernier">Mois dernier</button>
+        <button data-p="tout">Tout</button>
+        <button data-p="perso">Dates…</button>
+      </div>
+      <div id="hist-perso" class="row2 hidden" style="margin-top:10px">
+        <label class="field"><span>Du</span><input id="hist-du" type="date"></label>
+        <label class="field"><span>Au</span><input id="hist-au" type="date"></label>
+      </div>
+      <label class="field" style="margin-top:6px"><span>Catégorie / source</span>
+        <select id="hist-cat"><option value="">Toutes</option></select>
+      </label>
+    </div>
+
+    <div class="card" id="hist-totaux"></div>
+    <div class="card"><div id="hist-content"><div class="loader"><div class="spin"></div></div></div></div>
+  </section>
+
   <!-- ================= BARRE D'ONGLETS ================= -->
   <nav class="tabbar">
     <button data-page="ajouter" class="active"><span class="ic">➕</span>Ajouter</button>
     <button data-page="budget"><span class="ic">📊</span>Budget</button>
+    <button data-page="historique"><span class="ic">🔎</span>Historique</button>
     <button data-page="loyer"><span class="ic">🏠</span>Loyer</button>
     <button data-page="cours"><span class="ic">📅</span>Cours</button>
   </nav>

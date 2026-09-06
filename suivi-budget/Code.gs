@@ -499,6 +499,59 @@ function modifierTransaction(jeton, id, data) {
   return dashboardInterne_();
 }
 
+/**
+ * Renvoie les opérations filtrées + les totaux de la période.
+ * filtre = { periode:'7j'|'mois'|'moisDernier'|'tout'|'perso', du, au, categorie }
+ */
+function getOperations(jeton, filtre) {
+  verifierAcces_(jeton);
+  filtre = filtre || {};
+  var bornes = bornesPeriode_(filtre);
+  var cat = (filtre.categorie || '').trim();
+
+  var tx = lireTransactions_().filter(function (t) {
+    var d = normDate_(t.date);
+    if (bornes.du && d < bornes.du) return false;
+    if (bornes.au && d > bornes.au) return false;
+    if (cat && t.cat !== cat) return false;
+    return true;
+  });
+
+  var recu = 0, dep = 0;
+  tx.forEach(function (t) { if (t.type === 'Reçu') recu += t.eur; else dep += t.eur; });
+  tx.sort(function (a, b) { return normDate_(a.date) < normDate_(b.date) ? 1 : -1; }); // récent d'abord
+
+  return {
+    ops: tx.slice(0, 300),
+    count: tx.length,
+    totalRecuEur: arrondi_(recu),
+    totalDepEur: arrondi_(dep),
+    tauxCadEur: getTauxCadEur_(),
+    du: bornes.du, au: bornes.au
+  };
+}
+
+/** Calcule les bornes de dates (chaînes AAAA-MM-JJ) selon la période choisie. */
+function bornesPeriode_(filtre) {
+  var ajd = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  var moisCourant = ajd.slice(0, 7);
+  switch (filtre.periode) {
+    case '7j':
+      var d7 = new Date();
+      d7.setDate(d7.getDate() - 6);
+      return { du: Utilities.formatDate(d7, TZ, 'yyyy-MM-dd'), au: ajd };
+    case 'mois':
+      return { du: moisCourant + '-01', au: moisCourant + '-31' };
+    case 'moisDernier':
+      var mp = moisPrecedent_(moisCourant);
+      return { du: mp + '-01', au: mp + '-31' };
+    case 'perso':
+      return { du: (filtre.du || '').slice(0, 10), au: (filtre.au || '').slice(0, 10) };
+    default: // 'tout'
+      return { du: '', au: '' };
+  }
+}
+
 /* ============================================================
  * LOYER
  * ============================================================ */

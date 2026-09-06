@@ -23,6 +23,7 @@ facilement au smartphone par toute la famille. Construite en **Google Apps Scrip
 - Totaux du mois (reçu / dépensé), répartition des dépenses par catégorie.
 - **Graphique historique mensuel** (reçu vs dépenses, 6 derniers mois).
 - Dernières opérations, avec **modification** et suppression.
+- **Onglet Historique filtrable** : 7 jours · ce mois · mois dernier · tout · plage de dates perso, filtre par catégorie/source, total de la période.
 - **Alerte email** quand le solde passe **sous 100 €**.
 
 ### 🏠 Suivi du loyer (Plaza 3)

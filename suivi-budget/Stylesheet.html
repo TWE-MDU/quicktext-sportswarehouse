@@ -251,4 +251,13 @@
   .hist-bar.recu { background: var(--recu); }
   .hist-bar.dep { background: var(--dep); }
   .hist-lbl { font-size: 11px; color: var(--muted); margin-top: 6px; white-space: nowrap; }
+
+  /* Filtres (chips) */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips button {
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer; width: auto;
+  }
+  .chips button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .peri-totaux { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 </style>
